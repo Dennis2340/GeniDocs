@@ -76,15 +76,10 @@ const handler = NextAuth({
             existingUserByGithubId &&
             existingUserByGithubId.email !== user.email
           ) {
-            // Option 1: Update the email (if you want to keep GitHub ID as primary identifier)
             await prisma.user.update({
               where: { id: existingUserByGithubId.id },
               data: { email: user.email },
             });
-
-            // Option 2: Block sign-in (uncomment if you want to prevent account linking)
-            // console.error("Account conflict: GitHub ID exists with different email");
-            // return false;
           }
 
           return true;
