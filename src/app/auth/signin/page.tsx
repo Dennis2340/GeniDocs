@@ -4,7 +4,7 @@ import Image from 'next/image';
 
 export default async function SignIn() {
   const session = await getServerSession();
-
+  console.log("session: ", session)
   if (session) {
     redirect('/dashboard');
   }

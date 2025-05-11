@@ -21,6 +21,15 @@ const handler = NextAuth({
           scope: "read:user user:email repo",
         },
       },
+      profile(profile) {
+        return {
+          id: profile.id.toString(),
+          name: profile.name || profile.login,
+          email: profile.email,
+          image: profile.avatar_url,
+          githubId: profile.id.toString(),
+        };
+      },
     }),
   ],
   callbacks: {
@@ -41,25 +50,43 @@ const handler = NextAuth({
         });
 
         try {
-          // Update or create user with GitHub data
-          const upsertResult = await prisma.user.upsert({
-            where: {
-              email: githubUser.email || user.email || "",
-            },
-            update: {
-              name: githubUser.name || user.name,
-              image: githubUser.avatar_url || user.image,
-              githubId: githubUser.id?.toString(),
-            },
-            create: {
-              name: githubUser.name || user.name || "GitHub User",
-              email: githubUser.email || user.email || "",
-              image: githubUser.avatar_url || user.image,
-              githubId: githubUser.id?.toString(),
-            },
-          });
+          // Check if user exists with either email or GitHub ID
+          const existingUserByEmail = user.email
+            ? await prisma.user.findUnique({
+                where: { email: user.email },
+              })
+            : null;
 
-          console.log("User upsert successful", { userId: upsertResult.id });
+          const existingUserByGithubId = githubUser.id
+            ? await prisma.user.findFirst({
+                where: { githubId: githubUser.id.toString() },
+              })
+            : null;
+
+          // If user exists with a different GitHub ID, update it
+          if (existingUserByEmail && !existingUserByEmail.githubId) {
+            await prisma.user.update({
+              where: { id: existingUserByEmail.id },
+              data: { githubId: githubUser.id.toString() },
+            });
+          }
+
+          // If user exists with a different email, handle the conflict
+          if (
+            existingUserByGithubId &&
+            existingUserByGithubId.email !== user.email
+          ) {
+            // Option 1: Update the email (if you want to keep GitHub ID as primary identifier)
+            await prisma.user.update({
+              where: { id: existingUserByGithubId.id },
+              data: { email: user.email },
+            });
+
+            // Option 2: Block sign-in (uncomment if you want to prevent account linking)
+            // console.error("Account conflict: GitHub ID exists with different email");
+            // return false;
+          }
+
           return true;
         } catch (error) {
           console.error("Error during sign in:", error);
@@ -68,14 +95,61 @@ const handler = NextAuth({
       }
       return true;
     },
-    async session({ session, user }) {
-      if (session.user && user) {
-        session.user.id = user.id;
+    async session({ session, user, token }) {
+      if (session.user) {
+        // If using JWT strategy
+        if (token) {
+          session.user.id = token.sub;
+          session.user.githubId = token.githubId;
+          session.accessToken = token.accessToken;
+        }
+        // If using database strategy
+        else if (user) {
+          session.user.id = user.id;
+
+          // Fetch full user data including organization
+          const fullUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: { organization: true },
+          });
+
+          if (fullUser) {
+            session.user.githubId = fullUser.githubId as string;
+            if (fullUser.organization) {
+              session.user.organization = {
+                id: fullUser.organization.id,
+                name: fullUser.organization.name,
+                slug: fullUser.organization.slug,
+              };
+            }
+          }
+        }
       }
       return session;
     },
+    async jwt({ token, user, account }) {
+      // Add user ID and GitHub ID to the token if available
+      if (user) {
+        token.userId = user.id;
+
+        if ("githubId" in user) {
+          token.githubId = user.githubId;
+        }
+      }
+
+      // Add access token to the JWT token if available
+      if (account) {
+        token.accessToken = account.access_token;
+      }
+
+      return token;
+    },
   },
-  debug: true,
+  session: {
+    strategy: "jwt", // Use JWT strategy for better session management
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  debug: process.env.NODE_ENV === "development",
   logger: {
     error(code, metadata) {
       console.error(`Auth error: ${code}`, metadata);
