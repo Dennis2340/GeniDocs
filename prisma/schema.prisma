@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
     provider = "prisma-client-js"
+    output   = "../node_modules/.prisma/client"
 }
 
 model User {
@@ -33,16 +34,18 @@ model Organization {
 }
 
 model Repository {
-    id             String       @id @default(cuid())
+    id             String          @id @default(cuid())
+    githubId       String          @unique
     name           String
     fullName       String
     description    String?
     githubUrl      String
     lastIndexedAt  DateTime?
-    createdAt      DateTime     @default(now())
-    updatedAt      DateTime     @updatedAt
-    organization   Organization @relation(fields: [organizationId], references: [id])
+    createdAt      DateTime        @default(now())
+    updatedAt      DateTime        @updatedAt
+    organization   Organization    @relation(fields: [organizationId], references: [id])
     organizationId String
+    documentation  Documentation?
 }
 
 model Account {
@@ -78,4 +81,14 @@ model VerificationToken {
     expires    DateTime
 
     @@unique([identifier, token])
+}
+
+model Documentation {
+    id           String      @id @default(cuid())
+    repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+    repositoryId String      @unique
+    status       String      @default("PENDING") // PENDING, GENERATING, COMPLETED, FAILED
+    generatedUrl String?
+    createdAt    DateTime    @default(now())
+    updatedAt    DateTime    @updatedAt
 }

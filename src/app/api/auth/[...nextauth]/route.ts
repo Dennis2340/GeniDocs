@@ -1,5 +1,5 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import NextAuth from "next-auth";
+import NextAuth, { AuthOptions } from "next-auth";
 import GithubProvider from "next-auth/providers/github";
 import { prisma } from "@/utils/db";
 
@@ -10,7 +10,7 @@ console.log("Auth setup - environment check:", {
   hasNextAuthSecret: !!process.env.NEXTAUTH_SECRET,
 });
 
-const handler = NextAuth({
+export const authOptions: AuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GithubProvider({
@@ -165,6 +165,8 @@ const handler = NextAuth({
   //     signIn: "/auth/signin",
   //     error: "/auth/error",
   //   },
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
