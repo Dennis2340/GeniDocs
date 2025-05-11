@@ -1,103 +1,92 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { getServerSession } from 'next-auth';
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession();
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800">
+      {/* Hero Section */}
+      <div className="container mx-auto px-4 py-20">
+        <div className="text-center">
+          <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
+            AI-Powered Documentation Builder
+          </h1>
+          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+            Automatically generate beautiful documentation for your GitHub repositories using AI.
+            Save time and create comprehensive docs that your team will love.
+          </p>
+          {!session ? (
+            <Link
+              href="/auth/signin"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+            >
+              Get Started with GitHub
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+            >
+              Go to Dashboard
+            </Link>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {/* Features Section */}
+      <div className="container mx-auto px-4 py-20">
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="bg-gray-800 p-6 rounded-lg">
+            <div className="text-blue-500 text-4xl mb-4">🚀</div>
+            <h3 className="text-xl font-bold text-white mb-2">Quick Setup</h3>
+            <p className="text-gray-300">
+              Connect your GitHub repository and let our AI analyze your codebase in minutes.
+            </p>
+          </div>
+          <div className="bg-gray-800 p-6 rounded-lg">
+            <div className="text-blue-500 text-4xl mb-4">🤖</div>
+            <h3 className="text-xl font-bold text-white mb-2">AI-Powered</h3>
+            <p className="text-gray-300">
+              Advanced AI algorithms understand your code and generate comprehensive documentation.
+            </p>
+          </div>
+          <div className="bg-gray-800 p-6 rounded-lg">
+            <div className="text-blue-500 text-4xl mb-4">📚</div>
+            <h3 className="text-xl font-bold text-white mb-2">Beautiful Docs</h3>
+            <p className="text-gray-300">
+              Get professional, well-structured documentation that's easy to navigate and maintain.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="container mx-auto px-4 py-20">
+        <div className="bg-blue-600 rounded-2xl p-12 text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Ready to transform your documentation?
+          </h2>
+          <p className="text-xl text-blue-100 mb-8">
+            Join thousands of developers who are already saving time with AI-powered documentation.
+          </p>
+          {!session ? (
+            <Link
+              href="/auth/signin"
+              className="bg-white text-blue-600 hover:bg-gray-100 font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+            >
+              Start Free Trial
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard"
+              className="bg-white text-blue-600 hover:bg-gray-100 font-bold py-3 px-8 rounded-lg text-lg transition-colors"
+            >
+              Go to Dashboard
+            </Link>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
