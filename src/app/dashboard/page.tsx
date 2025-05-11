@@ -1,10 +1,11 @@
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { prisma } from '@/utils/db';
-import { Key, ReactElement, JSXElementConstructor, ReactNode, ReactPortal } from 'react';
+import { authOptions } from '../api/auth/[...nextauth]/route';
 
 export default async function Dashboard() {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
 
   if (!session) {
     redirect('/auth/signin');
@@ -22,15 +23,22 @@ export default async function Dashboard() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-300">Welcome, {session.user?.name}</span>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="container mx-auto px-4 py-6">
+        {/* Header Section */}
+        <div className="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/dashboard/repo-select"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded transition-colors"
+            >
+              Select Repositories
+            </Link>
+            <span className="text-sm text-gray-400">Welcome, {session.user?.name}</span>
             <a
               href="/api/auth/signout"
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+              className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded transition-colors"
             >
               Sign Out
             </a>
@@ -38,35 +46,40 @@ export default async function Dashboard() {
         </div>
 
         {user?.organization ? (
-          <div className="space-y-8">
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-bold text-white mb-4">
+          <div className="space-y-4">
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h2 className="text-lg font-semibold mb-2 inline-block">
                 Organization: {user.organization.name}
               </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {user.organization.repositories.map((repo: { id: Key | null | undefined; name: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; description: any; githubUrl: string | undefined; }) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {user.organization.repositories.map((repo) => (
                   <div
                     key={repo.id}
-                    className="bg-gray-700 p-4 rounded-lg"
+                    className="bg-gray-700 p-3 rounded-lg flex flex-col justify-between h-full"
                   >
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                      {repo.name}
-                    </h3>
-                    <p className="text-gray-300 text-sm mb-4">
-                      {repo.description || 'No description available'}
-                    </p>
-                    <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-base font-medium mb-1 truncate">
+                        {typeof repo.name === 'string' ? repo.name : 'Unnamed Repo'}
+                      </h3>
+                      <p className="text-xs text-gray-400 mb-2 line-clamp-2">
+                        {repo.description || 'No description available'}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
                       <a
                         href={repo.githubUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-400 hover:underline text-sm"
+                        className="text-xs text-blue-400 hover:underline truncate"
                       >
                         View on GitHub
                       </a>
-                      <button className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                      <Link 
+                        href={`/dashboard/generate-docs/${repo.id}`}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors inline-block text-center"
+                      >
                         Generate Docs
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 ))}
@@ -74,14 +87,12 @@ export default async function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg p-6 text-center">
-            <h2 className="text-xl font-bold text-white mb-4">
-              No Organization Found
-            </h2>
-            <p className="text-gray-300 mb-4">
+          <div className="bg-gray-800 rounded-lg p-4 text-center">
+            <h2 className="text-lg font-semibold mb-2">No Organization Found</h2>
+            <p className="text-sm text-gray-400 mb-3">
               You need to create or join an organization to start generating documentation.
             </p>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+            <button className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1 rounded-lg transition-colors">
               Create Organization
             </button>
           </div>
@@ -89,4 +100,4 @@ export default async function Dashboard() {
       </div>
     </div>
   );
-} 
+}
