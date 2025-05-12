@@ -1,125 +1,96 @@
-import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { prisma } from '@/utils/db';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server";
+import { Octokit } from "@octokit/rest";
+import { prisma } from "@/utils/db";
+import { authOptions } from "../auth/[...nextauth]/route";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    // Get the user session with auth options
     const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
+
+    if (!session?.accessToken) {
+      return NextResponse.json(
+        { error: "Unauthorized - No access token" },
+        { status: 401 }
+      );
     }
 
-    // Parse the request body
-    const body = await req.json();
-    const { repoIds } = body;
-
-    if (!repoIds || !Array.isArray(repoIds) || repoIds.length === 0) {
-      return new Response(JSON.stringify({ message: 'No repositories selected' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Find the user
+    // Get the user's organization
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { id: session.user.id },
       include: { organization: true },
     });
 
-    if (!user) {
-      return new Response(JSON.stringify({ message: 'User not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!user?.organization) {
+      return NextResponse.json(
+        { error: "No organization found for user" },
+        { status: 400 }
+      );
     }
 
-    // Create organization if it doesn't exist
-    let organizationId = user.organization?.id;
-    
-    if (!organizationId) {
-      // Create a new organization for the user
-      const newOrg = await prisma.organization.create({
-        data: {
-          name: `${session.user.name}'s Organization`,
-          slug: `${session.user.name?.toLowerCase().replace(/\s+/g, '-')}-org`,
-          users: {
-            connect: { id: user.id },
-          },
-        },
-      });
-      organizationId = newOrg.id;
+    const organizationId = user.organization.id;
+
+    // Get the selected repository IDs from the request
+    const { repoIds } = await request.json();
+
+    if (!Array.isArray(repoIds) || repoIds.length === 0) {
+      return NextResponse.json(
+        { error: "No repositories selected" },
+        { status: 400 }
+      );
     }
 
-    // Fetch repo details from GitHub API via our /api/repos endpoint
-    const reposResponse = await fetch(`${req.nextUrl.origin}/api/repos`);
-    if (!reposResponse.ok) {
-      return new Response(JSON.stringify({ message: 'Failed to fetch repository details' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    
-    const allRepos = await reposResponse.json();
-    const selectedRepos = allRepos.filter((repo: any) => repoIds.includes(repo.id));
+    // Initialize Octokit to fetch repository details
+    const octokit = new Octokit({
+      auth: session.accessToken,
+    });
 
-    // Update or create repositories for the organization
-    const results = await Promise.all(
-      selectedRepos.map(async (repo: any) => {
-        // Check if repository already exists
-        const existingRepo = await prisma.repository.findFirst({
-          where: {
-            githubId: repo.id,
+    // First, get all repositories to find the full names
+    const { data: allRepos } = await octokit.repos.listForAuthenticatedUser({
+      sort: "updated",
+      per_page: 100,
+    });
+
+    // Create a map of repository IDs to their full names
+    const repoMap = new Map(allRepos.map((repo) => [repo.id.toString(), repo]));
+
+    // Filter and map the selected repositories
+    const selectedRepos = repoIds
+      .map((id) => repoMap.get(id))
+      .filter((repo): repo is NonNullable<typeof repo> => repo !== undefined);
+
+    if (selectedRepos.length === 0) {
+      return NextResponse.json(
+        { error: "No valid repositories found" },
+        { status: 400 }
+      );
+    }
+
+    // Create repositories in the database
+    const createdRepos = await Promise.all(
+      selectedRepos.map((repo) =>
+        prisma.repository.create({
+          data: {
+            githubId: repo.id.toString(),
+            name: repo.name,
+            fullName: repo.full_name,
+            description: repo.description ?? null,
+            githubUrl: repo.html_url,
             organizationId,
           },
-        });
-
-        if (existingRepo) {
-          // Update existing repo
-          return prisma.repository.update({
-            where: { id: existingRepo.id },
-            data: {
-              name: repo.name,
-              fullName: repo.fullName,
-              description: repo.description,
-              githubUrl: repo.githubUrl,
-            },
-          });
-        }
-
-        // Create new repository
-        return prisma.repository.create({
-          data: {
-            githubId: repo.id,
-            name: repo.name,
-            fullName: repo.fullName,
-            description: repo.description || 'No description',
-            githubUrl: repo.githubUrl,
-            organization: {
-              connect: { id: organizationId },
-            },
-          },
-        });
-      })
+        })
+      )
     );
 
-    return new Response(JSON.stringify({ 
-      message: 'Repositories selected successfully',
-      repositories: results 
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+    return NextResponse.json({
+      message: "Repositories added successfully",
+      repositories: createdRepos,
     });
   } catch (error) {
-    console.error('Error selecting repositories:', error);
-    return new Response(JSON.stringify({ message: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    console.error("Error saving repositories:", error);
+    return NextResponse.json(
+      { error: "Failed to save repositories" },
+      { status: 500 }
+    );
   }
 }

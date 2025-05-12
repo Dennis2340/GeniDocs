@@ -1,31 +1,35 @@
-import { NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { prisma } from '@/utils/db';
-import { getOctokit } from '@/utils/octokit';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
+import { prisma } from "@/utils/db";
+import { getOctokit } from "@/utils/octokit";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 export async function POST(req: NextRequest) {
   try {
     // Get the repoId from the query string
     const { searchParams } = new URL(req.url);
-    const repoId = searchParams.get('repoId');
+    const repoId = searchParams.get("repoId");
 
     if (!repoId) {
-      return new Response(JSON.stringify({ message: 'Repository ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ message: "Repository ID is required" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Get the user session with auth options
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
-      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ message: "Unauthorized" }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       });
     }
+
 
     // Find the repository in the database
     const repository = await prisma.repository.findFirst({
@@ -34,35 +38,38 @@ export async function POST(req: NextRequest) {
     });
 
     if (!repository) {
-      return new Response(JSON.stringify({ message: 'Repository not found' }), {
+      return new Response(JSON.stringify({ message: "Repository not found" }), {
         status: 404,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
     // For testing purposes, get the first GitHub account with a token
     const account = await prisma.account.findFirst({
-      where: { provider: 'github' },
+      where: { provider: "github" },
     });
 
     if (!account || !account.access_token) {
-      return new Response(JSON.stringify({ message: 'No GitHub access token found' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ message: "No GitHub access token found" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Initialize Octokit with the access token
     const octokit = getOctokit(account.access_token);
 
     // Parse the repository full name to get owner and repo
-    const [owner, repo] = repository.fullName.split('/');
+    const [owner, repo] = repository.fullName.split("/");
 
     // Fetch repository content (this is a simplified example)
     const { data: repoContent } = await octokit.rest.repos.getContent({
       owner,
       repo,
-      path: '',
+      path: "",
     });
 
     // Create or update documentation record
@@ -71,15 +78,15 @@ export async function POST(req: NextRequest) {
         repositoryId: repository.id,
       },
       update: {
-        status: 'GENERATING',
+        status: "GENERATING",
         updatedAt: new Date(),
       },
       create: {
         repository: {
           connect: { id: repository.id },
         },
-        status: 'GENERATING',
-        generatedUrl: '',
+        status: "GENERATING",
+        generatedUrl: "",
       },
     });
 
@@ -97,43 +104,48 @@ export async function POST(req: NextRequest) {
         await prisma.documentation.update({
           where: { id: documentation.id },
           data: {
-            status: 'COMPLETED',
+            status: "COMPLETED",
             generatedUrl: `/docs/${owner}/${repo}`,
             updatedAt: new Date(),
           },
         });
-        console.log(`Documentation generation completed for ${repository.fullName}`);
+        console.log(
+          `Documentation generation completed for ${repository.fullName}`
+        );
       } catch (error) {
-        console.error('Error updating documentation status:', error);
+        console.error("Error updating documentation status:", error);
         await prisma.documentation.update({
           where: { id: documentation.id },
           data: {
-            status: 'FAILED',
+            status: "FAILED",
             updatedAt: new Date(),
           },
         });
       }
     }, 5000); // Simulate 5 seconds of processing
 
-    return new Response(JSON.stringify({
-      message: 'Documentation generation started',
-      documentationId: documentation.id,
-      repository: {
-        id: repository.id,
-        name: repository.name,
-        fullName: repository.fullName,
-      },
-      user: owner,
-      repo,
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        message: "Documentation generation started",
+        documentationId: documentation.id,
+        repository: {
+          id: repository.id,
+          name: repository.name,
+          fullName: repository.fullName,
+        },
+        user: owner,
+        repo,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
-    console.error('Error generating documentation:', error);
-    return new Response(JSON.stringify({ message: 'Internal server error' }), {
+    console.error("Error generating documentation:", error);
+    return new Response(JSON.stringify({ message: "Internal server error" }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     });
   }
 }

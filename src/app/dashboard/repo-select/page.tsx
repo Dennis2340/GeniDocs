@@ -2,164 +2,317 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import PageLayout from '@/components/layout/PageLayout';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+
+interface Repository {
+  id: string;
+  name: string;
+  fullName: string;
+  description: string | null;
+  url: string;
+  private: boolean;
+  updatedAt: string;
+  language: string | null;
+  stars: number;
+  forks: number;
+}
 
 export default function RepoSelect() {
-  const [repos, setRepos] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const [repos, setRepos] = useState<Repository[]>([]);
+  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    async function fetchRepos() {
+    if (status === 'unauthenticated') {
+      router.push('/api/auth/signin');
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    const fetchRepos = async () => {
       try {
-        setLoading(true);
-        setError(null);
         const response = await fetch('/api/repos');
-        
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to fetch repositories');
+          throw new Error('Failed to fetch repositories');
         }
-        
         const data = await response.json();
         setRepos(data);
-      } catch (err: any) {
-        console.error('Error fetching repositories:', err);
-        setError(err.message || 'An error occurred while fetching repositories');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch repositories');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
-    }
-    fetchRepos();
-  }, []);
+    };
 
-  const handleSubmit = async () => {
+    if (session?.accessToken) {
+      fetchRepos();
+    }
+  }, [session]);
+
+  const handleRepoSelect = (repoId: string) => {
+    setSelectedRepos((prev) =>
+      prev.includes(repoId)
+        ? prev.filter((id) => id !== repoId)
+        : [...prev, repoId]
+    );
+  };
+
+  const handleSave = async () => {
     if (selectedRepos.length === 0) {
       setError('Please select at least one repository');
       return;
     }
-    
+
+    setIsSaving(true);
+    setError(null);
+
     try {
-      setSaving(true);
       const response = await fetch('/api/select', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ repoIds: selectedRepos }),
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save selection');
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save repositories');
       }
-      
-      const result = await response.json();
-      console.log('Selection saved:', result);
-      
-      // Redirect to dashboard or confirmation page
+
       router.push('/dashboard');
-    } catch (err: any) {
-      console.error('Error saving selection:', err);
-      setError(err.message || 'An error occurred while saving your selection');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save repositories');
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
-          <h1 className="text-2xl font-bold">Select Repositories</h1>
-          <Link 
-            href="/dashboard"
-            className="text-blue-400 hover:text-blue-300 text-sm"
-          >
-            Back to Dashboard
-          </Link>
+  const renderActions = () => (
+    <>
+      <Button 
+        variant="outline" 
+        onClick={() => router.push('/dashboard')}
+      >
+        Cancel
+      </Button>
+      <Button
+        onClick={handleSave}
+        isLoading={isSaving}
+        disabled={selectedRepos.length === 0}
+        rightIcon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        }
+      >
+        Save Selection
+      </Button>
+    </>
+  );
+
+  if (status === 'loading' || isLoading) {
+    return (
+      <PageLayout title="Select Repositories">
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         </div>
-        
-        {error && (
-          <div className="bg-red-900/50 border border-red-700 text-red-100 px-4 py-2 rounded mb-4">
-            {error}
-          </div>
-        )}
-        
-        {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500"></div>
-          </div>
-        ) : repos.length > 0 ? (
-          <div className="bg-gray-800 rounded-lg p-4">
-            <p className="text-sm text-gray-400 mb-4">
-              Select the repositories you want to generate documentation for:
-            </p>
+      </PageLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageLayout title="Select Repositories">
+        <Card variant="elevated">
+          <div className="text-red-500 mb-4">{error}</div>
+          <Button onClick={() => router.refresh()} fullWidth>
+            Try Again
+          </Button>
+        </Card>
+      </PageLayout>
+    );
+  }
+
+  return (
+    <PageLayout 
+      title="Select Repositories" 
+      showBackButton
+      actions={renderActions()}
+    >
+      <div className="space-y-6">
+        {repos.length === 0 ? (
+          <Card variant="elevated">
+            <div className="text-center py-8">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <h3 className="mt-2 text-lg font-medium text-gray-900">No repositories found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                We couldn't find any repositories associated with your GitHub account.
+              </p>
+            </div>
+          </Card>
+        ) : (
+          <>
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 flex items-start">
+              <svg className="h-5 w-5 text-indigo-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-indigo-800">Select repositories to generate documentation</h3>
+                <p className="mt-1 text-sm text-indigo-700">
+                  Choose the repositories you want to generate documentation for. 
+                  You can select multiple repositories.
+                </p>
+              </div>
+            </div>
             
-            <div className="grid gap-2 mb-6">
+            <div className="grid gap-4">
               {repos.map((repo) => (
-                <div 
+                <Card
                   key={repo.id}
-                  className="flex items-center p-3 bg-gray-700/50 rounded hover:bg-gray-700 transition-colors"
+                  variant={selectedRepos.includes(repo.id) ? 'elevated' : 'default'}
+                  className={`transition-all duration-200 ${
+                    selectedRepos.includes(repo.id) 
+                      ? 'border-indigo-300 ring-1 ring-indigo-300' 
+                      : 'hover:border-gray-300'
+                  }`}
+                  onClick={() => handleRepoSelect(repo.id)}
+                  noPadding
                 >
-                  <input
-                    type="checkbox"
-                    id={repo.id}
-                    checked={selectedRepos.includes(repo.id)}
-                    onChange={(e) =>
-                      setSelectedRepos(
-                        e.target.checked
-                          ? [...selectedRepos, repo.id]
-                          : selectedRepos.filter((id) => id !== repo.id)
-                      )
-                    }
-                    className="mr-3 h-4 w-4"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor={repo.id} className="font-medium cursor-pointer">
-                      {repo.fullName || repo.name}
-                    </label>
-                    {repo.description && (
-                      <p className="text-xs text-gray-400 mt-1">{repo.description}</p>
-                    )}
+                  <div className="p-4 sm:p-6">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedRepos.includes(repo.id)}
+                          onChange={() => {}} // Handled by card click
+                          className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-lg font-medium text-gray-900">
+                              {repo.name}
+                            </h3>
+                            {repo.private && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Private
+                              </span>
+                            )}
+                          </div>
+                          <a
+                            href={repo.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-gray-500"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <svg
+                              className="h-5 w-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </a>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-500 line-clamp-2">
+                          {repo.description || 'No description available'}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                          {repo.language && (
+                            <span className="flex items-center">
+                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 mr-1.5"></span>
+                              {repo.language}
+                            </span>
+                          )}
+                          <span className="flex items-center">
+                            <svg
+                              className="w-4 h-4 mr-1 text-amber-400"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            {repo.stars}
+                          </span>
+                          <span className="flex items-center">
+                            <svg
+                              className="w-4 h-4 mr-1"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v10H5V5z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            {repo.forks} forks
+                          </span>
+                          <span className="text-gray-400">
+                            Updated {new Date(repo.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
-            
-            <div className="flex justify-end">
-              <button 
-                onClick={handleSubmit}
-                disabled={saving || selectedRepos.length === 0}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          </>
+        )}
+
+        <div className="sticky bottom-4 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-10">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <span className="font-medium text-gray-900">
+                {selectedRepos.length} {selectedRepos.length === 1 ? 'repository' : 'repositories'} selected
+              </span>
+              {selectedRepos.length > 0 && (
+                <span className="ml-2 text-sm text-gray-500">
+                  (Click to toggle selection)
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="outline"
+                onClick={() => router.push('/dashboard')}
               >
-                {saving ? (
-                  <>
-                    <span className="animate-spin rounded-full h-4 w-4 border-t-2 border-white mr-2"></span>
-                    Saving...
-                  </>
-                ) : (
-                  'Save Selection'
-                )}
-              </button>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                isLoading={isSaving}
+                disabled={selectedRepos.length === 0}
+              >
+                Save Selection
+              </Button>
             </div>
           </div>
-        ) : (
-          <div className="bg-gray-800 rounded-lg p-6 text-center">
-            <h2 className="text-lg font-semibold mb-2">No Repositories Found</h2>
-            <p className="text-sm text-gray-400 mb-4">
-              We couldn't find any repositories associated with your GitHub account.
-            </p>
-            <Link 
-              href="/dashboard"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded inline-block"
-            >
-              Return to Dashboard
-            </Link>
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
