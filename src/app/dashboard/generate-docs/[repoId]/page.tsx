@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function GenerateDocs({ params }: { params: { repoId: string } }) {
+export default function GenerateDocs() {
+  const params = useParams();
+  const repoId = params?.repoId as string;
   const [status, setStatus] = useState('Initializing...');
   const [isGenerating, setIsGenerating] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -12,18 +14,24 @@ export default function GenerateDocs({ params }: { params: { repoId: string } })
   const router = useRouter();
 
   useEffect(() => {
+    // Ensure repoId is available before proceeding
+    if (!repoId) return;
+    
     async function generateDocs() {
       try {
         setIsGenerating(true);
         setError(null);
         
-        const response = await fetch(`/api/generate?repoId=${params.repoId}`, {
+        const response = await fetch(`/api/generate?repoId=${repoId}`, {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
         
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to generate documentation');
+          throw new Error(errorData.error || 'Failed to generate documentation');
         }
         
         const data = await response.json();
@@ -33,6 +41,14 @@ export default function GenerateDocs({ params }: { params: { repoId: string } })
         // Poll for status updates (in a real app, you might use WebSockets)
         const statusCheckInterval = setInterval(async () => {
           try {
+            if (!data.documentationId) {
+              console.error('Missing documentationId');
+              clearInterval(statusCheckInterval);
+              setError('Missing documentation ID. Please try again.');
+              setIsGenerating(false);
+              return;
+            }
+            
             const statusResponse = await fetch(`/api/generate/status?documentationId=${data.documentationId}`);
             if (statusResponse.ok) {
               const statusData = await statusResponse.json();
@@ -42,9 +58,16 @@ export default function GenerateDocs({ params }: { params: { repoId: string } })
                 setIsGenerating(false);
                 clearInterval(statusCheckInterval);
                 
+                // Run standardization scripts
+                try {
+                  await fetch('/api/docs/standardize', { method: 'POST' });
+                } catch (err) {
+                  console.error('Error running standardization scripts:', err);
+                }
+                
                 // Redirect to docs page after a short delay
                 setTimeout(() => {
-                  router.push(`/docs/${data.user}/${data.repo}`);
+                  router.push(`/docs/${data.repo}`);
                 }, 2000);
               } else if (statusData.status === 'FAILED') {
                 setStatus('Documentation generation failed.');
@@ -54,6 +77,8 @@ export default function GenerateDocs({ params }: { params: { repoId: string } })
               } else {
                 setStatus(`Status: ${statusData.status}`);
               }
+            } else {
+              console.error('Error response from status endpoint:', await statusResponse.text());
             }
           } catch (err) {
             console.error('Error checking status:', err);
@@ -72,7 +97,7 @@ export default function GenerateDocs({ params }: { params: { repoId: string } })
     }
     
     generateDocs();
-  }, [params.repoId, router]);
+  }, [repoId, router]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -114,7 +139,7 @@ export default function GenerateDocs({ params }: { params: { repoId: string } })
                       Documentation for <span className="font-semibold">{result.repository?.fullName}</span> has been generated.
                     </p>
                     <Link
-                      href={`/docs/${result.user}/${result.repo}`}
+                      href={`/docs/${result.repo}`}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition-colors inline-block"
                     >
                       View Documentation
