@@ -15,6 +15,7 @@ export default function GenerateDocs() {
   const [repoDetails, setRepoDetails] = useState<any>(null);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('initializing');
+  
   // Define the type for generation steps
   interface GenerationStep {
     id: string;
@@ -61,16 +62,6 @@ export default function GenerateDocs() {
         setIsGenerating(true);
         setError(null);
         setLogs([]);
-        setProgress(0);
-        setCurrentStep('initializing');
-        
-        // Update UI to show initialization
-        setGenerationSteps(prev => prev.map(step => ({
-          ...step,
-          completed: false,
-          current: step.id === 'initializing',
-          error: false
-        })));
         
         const response = await fetch(`/api/generate?repoId=${repoId}`, {
           method: 'POST',
@@ -107,22 +98,6 @@ export default function GenerateDocs() {
               // Update logs if available
               if (statusData.logs && Array.isArray(statusData.logs)) {
                 setLogs(statusData.logs);
-                
-                // Auto-scroll to bottom of logs
-                const logsContainer = document.getElementById('logs-container');
-                if (logsContainer) {
-                  logsContainer.scrollTop = logsContainer.scrollHeight;
-                }
-              }
-              
-              // Update progress and estimated time
-              if (typeof statusData.progress === 'number') {
-                setProgress(statusData.progress);
-              }
-              
-              // Update estimated time remaining if available
-              if (statusData.estimatedTimeRemaining) {
-                setStatus(`Generating documentation... Estimated time remaining: ${statusData.estimatedTimeRemaining}`);
               }
               
               if (statusData.status === 'COMPLETED') {
@@ -148,16 +123,7 @@ export default function GenerateDocs() {
                 
                 // Redirect to docs page after a short delay
                 setTimeout(() => {
-                  // Use the repository slug from the status data
-                  const repoSlug = statusData.repository ? statusData.repository.replace('/', '-').toLowerCase() : '';
-                  if (repoSlug) {
-                    // Redirect to the Docusaurus server instead of the Next.js route
-                    window.location.href = `http://localhost:3001/docs/${repoSlug}`;
-                  } else {
-                    // Fallback to dashboard if no slug is available
-                    router.push('/dashboard');
-                    console.error('No repository slug available for redirect');
-                  }
+                  router.push(`/docs/${data.repo}`);
                 }, 2000);
               } else if (statusData.status === 'FAILED') {
                 setStatus('Documentation generation failed.');
@@ -221,7 +187,7 @@ export default function GenerateDocs() {
     }
     
     generateDocs();
-  }, [repoId, router]);
+  }, [repoId, router, currentStep]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -252,7 +218,7 @@ export default function GenerateDocs() {
           {/* Main Content */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-md p-8 border border-gray-200">
-              {error ? (
+              {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
                   <div className="flex items-start">
                     <svg className="h-5 w-5 text-red-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
@@ -264,7 +230,7 @@ export default function GenerateDocs() {
                     </div>
                   </div>
                 </div>
-              ) : null}
+              )}
               
               <div className="text-center py-8">
                 {isGenerating ? (
@@ -357,57 +323,58 @@ export default function GenerateDocs() {
                                 </div>
                               )}
                             </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </div>
+                  </>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <div className="bg-red-100 rounded-full h-24 w-24 flex items-center justify-center mx-auto mb-6">
+                      <svg className="h-12 w-12 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-semibold text-gray-900 mb-2">Documentation Generation Failed</h2>
+                    <p className="text-red-600 max-w-md mx-auto mb-4">{error}</p>
+                    <p className="text-gray-600 max-w-md mx-auto mb-8">
+                      There was an issue generating documentation for this repository. Please check the logs for more details.
+                    </p>
+                    <div className="flex justify-center space-x-4">
+                      <button 
+                        onClick={() => router.push('/dashboard')} 
+                        className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Back to Dashboard
+                      </button>
+                      <button 
+                        onClick={() => window.location.reload()} 
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Try Again
+                      </button>
+                    </div>
                   </div>
-                </>
-              ) : error ? (
-                <div className="text-center py-12">
-                  <div className="bg-red-100 rounded-full h-24 w-24 flex items-center justify-center mx-auto mb-6">
-                    <svg className="h-12 w-12 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="bg-green-100 rounded-full h-24 w-24 flex items-center justify-center mx-auto mb-6">
+                      <svg className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h2 className="text-2xl font-semibold text-gray-900 mb-2">{status}</h2>
+                    <p className="text-gray-600 max-w-md mx-auto mb-4">
+                      Your documentation has been successfully generated. You will be redirected to view it shortly.
+                    </p>
+                    <div className="animate-pulse flex justify-center items-center text-blue-600">
+                      <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Redirecting to documentation...</span>
+                    </div>
                   </div>
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-2">Documentation Generation Failed</h2>
-                  <p className="text-red-600 max-w-md mx-auto mb-4">{error}</p>
-                  <p className="text-gray-600 max-w-md mx-auto mb-8">
-                    There was an issue generating documentation for this repository. Please check the logs for more details.
-                  </p>
-                  <div className="flex justify-center space-x-4">
-                    <button 
-                      onClick={() => router.push('/dashboard')} 
-                      className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Back to Dashboard
-                    </button>
-                    <button 
-                      onClick={() => window.location.reload()} 
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Try Again
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="bg-green-100 rounded-full h-24 w-24 flex items-center justify-center mx-auto mb-6">
-                    <svg className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-2">{status}</h2>
-                  <p className="text-gray-600 max-w-md mx-auto mb-4">
-                    Your documentation has been successfully generated. You will be redirected to view it shortly.
-                  </p>
-                  <div className="animate-pulse flex justify-center items-center text-blue-600">
-                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Redirecting to documentation...</span>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
           
@@ -417,7 +384,7 @@ export default function GenerateDocs() {
               <div className="p-4 bg-gray-50 border-b border-gray-200">
                 <h3 className="text-lg font-medium text-gray-900">Generation Logs</h3>
               </div>
-              <div id="logs-container" className="p-4 max-h-[500px] overflow-y-auto">
+              <div className="p-4 max-h-[500px] overflow-y-auto">
                 {logs.length > 0 ? (
                   <div className="space-y-2 font-mono text-sm">
                     {logs.map((log, index) => {
@@ -438,7 +405,7 @@ export default function GenerateDocs() {
                       
                       return (
                         <div key={index} className="py-1 border-b border-gray-100 last:border-0">
-                          <span className="text-gray-500">{timestamp}</span> {' '}
+                          <span className="text-gray-500">{timestamp}</span> 
                           <span className={messageClass}>{message}</span>
                           {isError && (
                             <div className="mt-1 ml-6 text-xs text-red-500 bg-red-50 p-1 rounded">
@@ -460,7 +427,6 @@ export default function GenerateDocs() {
                 )}
               </div>
             </div>
-          </div>
             
             {/* Repository Info */}
             {repoDetails && (

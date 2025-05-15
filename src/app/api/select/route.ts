@@ -15,20 +15,42 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the user's organization
+    // Get the user's organization - use email as the unique identifier since that's what we have from session
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { email: session.user?.email || '' },
       include: { organization: true },
     });
-
-    if (!user?.organization) {
+    
+    if (!user) {
       return NextResponse.json(
-        { error: "No organization found for user" },
-        { status: 400 }
+        { error: "User not found in database" },
+        { status: 404 }
       );
     }
 
-    const organizationId = user.organization.id;
+    // If user doesn't have an organization, create one automatically
+    let organizationId;
+    
+    if (!user.organization) {
+      // Create a default organization for the user
+      const newOrg = await prisma.organization.create({
+        data: {
+          name: `${user.name || 'User'}'s Workspace`,
+          slug: `${user.name?.toLowerCase().replace(/\s+/g, '-') || 'user'}-${Date.now()}`
+          // Don't use connect here - we'll update the user directly
+        }
+      });
+      
+      // Update user with the new organization
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { organizationId: newOrg.id }
+      });
+      
+      organizationId = newOrg.id;
+    } else {
+      organizationId = user.organization.id;
+    }
 
     // Get the selected repository IDs from the request
     const { repoIds } = await request.json();
