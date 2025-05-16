@@ -80,10 +80,10 @@ export default async function Dashboard() {
   }, {} as Record<string, any>);
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-gray-200">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-6 border-b border-gray-200">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
             <p className="text-gray-600">Manage your repositories and documentation</p>
@@ -91,7 +91,7 @@ export default async function Dashboard() {
           <div className="flex items-center gap-4 mt-4 md:mt-0">
             <Link 
               href="/dashboard/repo-select"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 shadow-sm"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -99,14 +99,18 @@ export default async function Dashboard() {
               Select Repositories
             </Link>
             <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+              {session.user?.image ? (
+                <img src={session.user.image} alt={session.user?.name || 'User'} className="w-8 h-8 rounded-full" />
+              ) : (
               <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
                 {session.user?.name?.charAt(0) || 'U'}
               </div>
-              <span className="text-gray-700">{session.user?.name}</span>
+              )}
+              <span className="text-gray-700 font-medium">{session.user?.name}</span>
             </div>
             <a
               href="/api/auth/signout"
-              className="text-gray-600 hover:text-red-600 transition-colors"
+              className="text-gray-600 hover:text-red-600 transition-colors bg-white p-2 rounded-lg shadow-sm border border-gray-200"
               title="Sign Out"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -119,33 +123,39 @@ export default async function Dashboard() {
         {user?.organization ? (
           <div className="space-y-8">
             {/* Organization Info */}
-            <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-md p-6 border border-blue-100">
+              <div className="flex flex-col md:flex-row md:items-center justify-between">
+                <div className="flex items-start md:items-center gap-3 mb-4 md:mb-0">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">{user.organization.name}</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{user.organization.name}</h2>
                     <p className="text-sm text-gray-500">Organization</p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="flex space-x-6">
+                  <div className="text-center">
                   <div className="text-sm text-gray-500">Repositories</div>
                   <div className="text-2xl font-bold text-gray-900">{user.organization.repositories.length}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm text-gray-500">Documentation</div>
+                    <div className="text-2xl font-bold text-gray-900">{documentedRepos.length}</div>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Repositories Section */}
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Your Repositories</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Your Repositories</h2>
                 <Link 
                   href="/dashboard/repo-select"
-                  className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                  className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 font-medium"
                 >
                   <span>Manage repositories</span>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -156,18 +166,18 @@ export default async function Dashboard() {
 
               {user.organization.repositories.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-md p-8 text-center border border-gray-200">
-                  <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="mx-auto w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No repositories found</h3>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No repositories found</h3>
                   <p className="text-gray-500 mb-6 max-w-md mx-auto">
                     You haven't selected any repositories yet. Add repositories to start generating documentation.
                   </p>
                   <Link 
                     href="/dashboard/repo-select"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2 shadow-md"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -181,15 +191,16 @@ export default async function Dashboard() {
                     const repoName = typeof repo.name === 'string' ? repo.name : 'Unnamed Repo';
                     const fullName = repo.fullName || `${user.organization!.name}/${repoName}`;
                     const hasDocumentation = docsStatusMap[fullName];
+                    const repoSlug = fullName.replace('/', '-').toLowerCase();
                     
                     return (
                       <div
                         key={repo.id}
-                        className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col h-full transition-all duration-200 hover:shadow-lg"
+                        className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col transform transition-all duration-200 hover:shadow-lg hover:border-blue-200 group"
                       >
                         <div className="p-6 flex-grow">
                           <div className="flex items-start justify-between mb-3">
-                            <h3 className="text-lg font-semibold text-gray-900 truncate pr-4">
+                            <h3 className="text-lg font-bold text-gray-900 truncate pr-4 group-hover:text-blue-600">
                               {repoName}
                             </h3>
                             <div className="flex-shrink-0">
@@ -204,64 +215,78 @@ export default async function Dashboard() {
                               )}
                             </div>
                           </div>
-                          <p className="text-sm text-gray-500 mb-4 line-clamp-2 h-10">
+                          <p className="text-gray-500 text-sm mb-4 line-clamp-2">
                             {repo.description || 'No description available'}
                           </p>
-                          
-                          {/* Documentation Status */}
-                          <div className="mb-4">
-                            {hasDocumentation ? (
-                              <div className="flex items-center text-green-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-sm font-medium">Documentation Available</span>
+                          <div className="flex justify-between items-center">
+                            <div className="flex space-x-3">
+                              {repo.language && (
+                                <div className="flex items-center text-sm text-gray-500">
+                                  <span className="w-3 h-3 rounded-full bg-blue-500 mr-1.5"></span>
+                                  <span>{repo.language}</span>
                               </div>
-                            ) : (
-                              <div className="flex items-center text-gray-500">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-11a1 1 0 112 0v4a1 1 0 11-2 0V7zm1 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                              )}
+                              {typeof repo.stars === 'number' && (
+                                <div className="flex items-center text-sm text-gray-500">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                                 </svg>
-                                <span className="text-sm">No documentation yet</span>
+                                  <span>{repo.stars}</span>
                               </div>
                             )}
+                            </div>
+                            <div>
+                              {hasDocumentation ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Documented
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                  </svg>
+                                  No Docs
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        
-                        <div className="border-t border-gray-200 bg-gray-50 p-4 flex flex-col items-center justify-center">
-                          <a
-                            href={repo.githubUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                            <span>GitHub</span>
-                          </a>
-                          <div className="space-x-2">
-                            {hasDocumentation && (
-                              <Link
-                                href={`/docs/${fullName}`}
-                                className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1 rounded text-sm transition-colors inline-block"
-                              >
-                                View Docs
-                              </Link>
-                            )}
+                        <div className="border-t border-gray-100 p-4 bg-gray-50 flex justify-between items-center">
+                          {hasDocumentation ? (
+                            <Link 
+                              href={`/docs/${repoSlug}`}
+                              className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              View Documentation
+                            </Link>
+                          ) : (
                             <Link 
                               href={`/dashboard/generate-docs/${repo.id}`}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors inline-block"
+                              className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center"
                             >
-                              {hasDocumentation ? 'Update Docs' : 'Generate Docs'}
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                              Generate Docs
                             </Link>
-                            <Link 
-                              href={`/dashboard/repository/${repo.id}`}
-                              className="bg-gray-100 text-gray-700 hover:bg-gray-200 px-3 py-1 rounded text-sm transition-colors inline-block"
-                            >
-                              Manage
-                            </Link>
-                          </div>
+                          )}
+                          <a 
+                            href={repo.url || `https://github.com/${fullName}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-gray-500 hover:text-gray-700 text-sm flex items-center"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            GitHub
+                          </a>
                         </div>
                       </div>
                     );
@@ -270,73 +295,59 @@ export default async function Dashboard() {
               )}
             </div>
 
-            {/* Documentation Section */}
+            {/* Documentation Section - only show if there are documented repos */}
             {documentedRepos.length > 0 && (
-              <div className="mt-8">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Documentation</h2>
-                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead>
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Repository</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {documentedRepos.slice(0, 5).map((repo: any, index: number) => (
-                          <tr key={index}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{repo.fullName}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Available
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <Link href={`/docs/${repo.fullName}`} className="text-blue-600 hover:text-blue-900 mr-4">View</Link>
-                              <Link href={`/dashboard/generate-docs/${repo.id}`} className="text-blue-600 hover:text-blue-900">Update</Link>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              <div className="mt-12">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Documentation</h2>
+                <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {documentedRepos.map((repo: any) => {
+                      const repoSlug = repo.fullName.replace('/', '-').toLowerCase();
+                      return (
+                        <Link
+                          key={repo.id || repo.fullName}
+                          href={`/docs/${repoSlug}`}
+                          className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all flex items-center group"
+                        >
+                          <div className="mr-4 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900 group-hover:text-blue-600">{repo.name || repo.fullName}</h3>
+                            <p className="text-sm text-gray-500">
+                              {new Date(repo.updatedAt || Date.now()).toLocaleDateString()}
+                            </p>
                   </div>
-                  {documentedRepos.length > 5 && (
-                    <div className="mt-4 text-center">
-                      <Link href="/docs" className="text-blue-600 hover:text-blue-800 text-sm inline-flex items-center">
-                        <span>View all documentation</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-auto text-gray-400 group-hover:text-blue-500" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                         </svg>
                       </Link>
+                      );
+                    })}
                     </div>
-                  )}
                 </div>
               </div>
             )}
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-md p-8 text-center border border-gray-200">
-            <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            <div className="mx-auto w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Organization Found</h2>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Organization not found</h3>
             <p className="text-gray-500 mb-6 max-w-md mx-auto">
-              You need to create or join an organization to start generating documentation for your repositories.
+              There was an issue with your account. Please try signing out and back in, or contact support.
             </p>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-              </svg>
-              Create Organization
-            </button>
+            <Link 
+              href="/api/auth/signout"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2"
+            >
+              Sign Out
+            </Link>
           </div>
         )}
       </div>

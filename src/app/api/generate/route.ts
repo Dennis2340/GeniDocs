@@ -5,7 +5,12 @@ import { prisma } from "@/utils/db";
 import { Octokit } from "@octokit/rest";
 import fs from "fs";
 import path from "path";
-import { generateIndexPage, generateFallbackIndex, analyzeFileForDocumentation, generateFileDocumentation } from "@/utils/ai";
+import {
+  generateIndexPage,
+  generateFallbackIndex,
+  analyzeFileForDocumentation,
+  generateFileDocumentation,
+} from "@/utils/ai";
 import { addFrontMatter } from "@/utils/markdown";
 import { ensureDocusaurusConfig } from "@/utils/docusaurus-config";
 import { sanitizeFrontMatterValue } from "@/utils/sanitize";
@@ -30,31 +35,38 @@ import { autoDeploy } from "@/utils/auto-deploy";
  * Add a log entry with timestamp to the in-memory log store
  * Also updates progress and step tracking
  */
-function addLogEntry(repoId: string, message: string, progress?: number, step?: string) {
+function addLogEntry(
+  repoId: string,
+  message: string,
+  progress?: number,
+  step?: string
+) {
   if (!documentationLogs[repoId]) {
     documentationLogs[repoId] = [];
     documentationProgress[repoId] = 0;
-    documentationSteps[repoId] = 'initializing';
+    documentationSteps[repoId] = "initializing";
   }
-  
+
   // Add timestamp to the log message
   const timestamp = new Date().toLocaleTimeString();
   const logWithTimestamp = `[${timestamp}] ${message}`;
-  
+
   documentationLogs[repoId].push(logWithTimestamp);
-  
+
   // Update progress if provided
   if (progress !== undefined) {
     documentationProgress[repoId] = progress;
   }
-  
+
   // Update current step if provided
   if (step) {
     documentationSteps[repoId] = step;
   }
-  
+
   // Also log to server console
-  console.log(`[${repoId}] ${logWithTimestamp} (Progress: ${documentationProgress[repoId]}%, Step: ${documentationSteps[repoId]})`);
+  console.log(
+    `[${repoId}] ${logWithTimestamp} (Progress: ${documentationProgress[repoId]}%, Step: ${documentationSteps[repoId]})`
+  );
 }
 
 /**
@@ -64,7 +76,24 @@ export async function POST(request: NextRequest) {
   try {
     // Get authenticated user session
     const session = await getServerSession(authOptions);
-    let githubToken = null;
+    const user = await prisma.user.findUnique({
+      where: {
+        id: session?.user?.id,
+      },
+      include: {
+        accounts: {
+          select: {
+            access_token: true,
+          },
+        },
+      },
+    });
+
+    if (!user?.accounts[0].access_token) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    let githubToken = user.accounts[0].access_token;
     let owner: string | undefined;
     let repo: string | undefined;
 
@@ -100,14 +129,11 @@ export async function POST(request: NextRequest) {
           const formData = await request.formData();
           owner = formData.get("owner")?.toString();
           repo = formData.get("repo")?.toString();
-          const formToken = formData.get("token")?.toString();
-          githubToken = formToken || null;
         } else {
           // Try to parse JSON body as fallback
           const jsonData = await request.json().catch(() => ({}));
           owner = jsonData.owner;
           repo = jsonData.repo;
-          githubToken = jsonData.token || null;
         }
       } catch (error) {
         console.error("Error parsing request data:", error);
@@ -177,7 +203,7 @@ export async function POST(request: NextRequest) {
         try {
           // First, ensure we have a valid organization to link the repository to
           let organization;
-          
+
           if (session?.user?.id) {
             // Try to find user's organization
             organization = await prisma.organization.findFirst({
@@ -190,27 +216,27 @@ export async function POST(request: NextRequest) {
               },
             });
           }
-          
+
           // If no organization found, create a default one
           if (!organization) {
             // Check if default organization exists
             organization = await prisma.organization.findFirst({
               where: {
-                slug: 'default-organization',
+                slug: "default-organization",
               },
             });
-            
+
             // Create default organization if it doesn't exist
             if (!organization) {
               organization = await prisma.organization.create({
                 data: {
-                  name: 'Default Organization',
-                  slug: 'default-organization',
+                  name: "Default Organization",
+                  slug: "default-organization",
                 },
               });
             }
           }
-          
+
           // Now create the repository with the valid organization ID
           repository = await prisma.repository.create({
             data: {
@@ -223,7 +249,7 @@ export async function POST(request: NextRequest) {
             },
           });
         } catch (error: any) {
-          console.error('Error creating repository:', error);
+          console.error("Error creating repository:", error);
           throw new Error(`Failed to create repository: ${error.message}`);
         }
       }
@@ -252,7 +278,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Initialize logs for this repository and log the beginning of documentation generation
-    addLogEntry(repository.id, `Starting documentation generation for ${repository.fullName}`);
+    addLogEntry(
+      repository.id,
+      `Starting documentation generation for ${repository.fullName}`
+    );
 
     // Create or update documentation record in database
     const documentation = await prisma.documentation.upsert({
@@ -281,7 +310,10 @@ export async function POST(request: NextRequest) {
     generateDocumentation(repository, githubToken)
       .then(async () => {
         // Add completion log
-        addLogEntry(repository.id, `Documentation generation completed for ${repository.fullName}`);
+        addLogEntry(
+          repository.id,
+          `Documentation generation completed for ${repository.fullName}`
+        );
 
         // Update status when complete
         await prisma.documentation.update({
@@ -301,7 +333,9 @@ export async function POST(request: NextRequest) {
         });
 
         // Log to server console as well
-        console.log(`Documentation generation completed for ${repository.fullName}`);
+        console.log(
+          `Documentation generation completed for ${repository.fullName}`
+        );
       })
       .catch(async (error) => {
         console.error(
@@ -310,7 +344,10 @@ export async function POST(request: NextRequest) {
         );
 
         // Add error log
-        addLogEntry(repository.id, `Error generating documentation: ${error.message || "Unknown error"}`);
+        addLogEntry(
+          repository.id,
+          `Error generating documentation: ${error.message || "Unknown error"}`
+        );
 
         // Update status when failed
         await prisma.documentation.update({
@@ -412,7 +449,12 @@ async function generateDocumentation(repository: any, token: string | null) {
     const [owner, repo] = fullName.split("/");
 
     // Initialize progress tracking
-    addLogEntry(repository.id, "Starting documentation generation process", 5, "initializing");
+    addLogEntry(
+      repository.id,
+      "Starting documentation generation process",
+      5,
+      "initializing"
+    );
 
     // Create authenticated Octokit instance if token is available
     const githubClient = token ? new Octokit({ auth: token }) : octokit;
@@ -426,13 +468,23 @@ async function generateDocumentation(repository: any, token: string | null) {
     // Create directory if it doesn't exist
     if (!fs.existsSync(repoDir)) {
       fs.mkdirSync(repoDir, { recursive: true });
-      addLogEntry(id, `Created documentation directory for ${fullName}`, 12, "initializing");
+      addLogEntry(
+        id,
+        `Created documentation directory for ${fullName}`,
+        12,
+        "initializing"
+      );
     }
 
     addLogEntry(id, "Setting up Docusaurus structure", 10, "initializing");
 
     // Create Docusaurus configuration files if they don't exist
-    addLogEntry(repository.id, `Setting up Docusaurus for ${fullName}`, 15, "initializing");
+    addLogEntry(
+      repository.id,
+      `Setting up Docusaurus for ${fullName}`,
+      15,
+      "initializing"
+    );
     setupDocusaurusConfig(repoSlug, fullName);
 
     // Create intro file
@@ -440,7 +492,12 @@ async function generateDocumentation(repository: any, token: string | null) {
     await createIntroFile(repository);
 
     // Get repository contents
-    addLogEntry(repository.id, "Fetching repository contents from GitHub", 20, "analyzing");
+    addLogEntry(
+      repository.id,
+      "Fetching repository contents from GitHub",
+      20,
+      "analyzing"
+    );
     const { data: contentsRaw } = await githubClient.repos.getContent({
       owner,
       repo,
@@ -453,7 +510,12 @@ async function generateDocumentation(repository: any, token: string | null) {
     // Track documented files
     const documentedFiles: string[] = [];
 
-    addLogEntry(repository.id, "Analyzing repository structure", 25, "analyzing");
+    addLogEntry(
+      repository.id,
+      "Analyzing repository structure",
+      25,
+      "analyzing"
+    );
 
     // Process repository contents
     await processRepoContent(
@@ -468,7 +530,12 @@ async function generateDocumentation(repository: any, token: string | null) {
     );
 
     // Generate index page with links to all documented files
-    addLogEntry(repository.id, "Generating main documentation index", 85, "finalizing");
+    addLogEntry(
+      repository.id,
+      "Generating main documentation index",
+      85,
+      "finalizing"
+    );
     // Convert documentedFiles array to a string with file names
     const filesList = documentedFiles.join("\n");
     const indexContent = await generateIndexPage(fullName, filesList);
@@ -478,48 +545,103 @@ async function generateDocumentation(repository: any, token: string | null) {
     );
 
     // Generate Docusaurus sidebar configuration
-    addLogEntry(repository.id, "Configuring Docusaurus sidebar", 90, "finalizing");
+    addLogEntry(
+      repository.id,
+      "Configuring Docusaurus sidebar",
+      90,
+      "finalizing"
+    );
     await createSidebar(repoSlug, documentedFiles, repoDir);
-    addLogEntry(repository.id, `Configured Docusaurus sidebar for ${fullName}`, 92, "finalizing");
+    addLogEntry(
+      repository.id,
+      `Configured Docusaurus sidebar for ${fullName}`,
+      92,
+      "finalizing"
+    );
 
     // Ensure Docusaurus configuration is properly set up
-    addLogEntry(repository.id, "Ensuring Docusaurus configuration is properly set up", 94, "finalizing");
+    addLogEntry(
+      repository.id,
+      "Ensuring Docusaurus configuration is properly set up",
+      94,
+      "finalizing"
+    );
     try {
       await ensureDocusaurusConfig(repoSlug);
-      addLogEntry(repository.id, `Docusaurus configuration updated successfully`, 96, "finalizing");
+      addLogEntry(
+        repository.id,
+        `Docusaurus configuration updated successfully`,
+        96,
+        "finalizing"
+      );
     } catch (configError) {
       console.error("Error updating Docusaurus configuration:", configError);
-      addLogEntry(repository.id, `Warning: Could not update Docusaurus configuration: ${configError}`, 96, "finalizing");
+      addLogEntry(
+        repository.id,
+        `Warning: Could not update Docusaurus configuration: ${configError}`,
+        96,
+        "finalizing"
+      );
     }
 
     // Set the documentation URL
     const docusaurusUrl = `/docs/${repoSlug}`;
-    
+
     // Update the documentation record with the URL
     try {
       await prisma.documentation.update({
         where: { repositoryId: id },
         data: {
           generatedUrl: docusaurusUrl,
-          status: "COMPLETED"
-        }
+          status: "COMPLETED",
+        },
       });
-      addLogEntry(repository.id, `Updated documentation record in database`, 98, "finalizing");
+      addLogEntry(
+        repository.id,
+        `Updated documentation record in database`,
+        98,
+        "finalizing"
+      );
     } catch (dbError) {
       console.error("Error updating documentation record:", dbError);
-      addLogEntry(repository.id, `Warning: Could not update documentation record in database`, 98, "finalizing");
+      addLogEntry(
+        repository.id,
+        `Warning: Could not update documentation record in database`,
+        98,
+        "finalizing"
+      );
     }
 
-    addLogEntry(repository.id, "Documentation generation completed successfully", 100, "completed");
+    addLogEntry(
+      repository.id,
+      "Documentation generation completed successfully",
+      100,
+      "completed"
+    );
 
     // Auto-deploy the documentation
-    addLogEntry(repository.id, "Starting automatic documentation deployment", 100, "deploying");
+    addLogEntry(
+      repository.id,
+      "Starting automatic documentation deployment",
+      100,
+      "deploying"
+    );
     try {
       await autoDeploy(repository.id);
-      addLogEntry(repository.id, "Documentation deployed successfully", 100, "completed");
+      addLogEntry(
+        repository.id,
+        "Documentation deployed successfully",
+        100,
+        "completed"
+      );
     } catch (deployError) {
       console.error("Error deploying documentation:", deployError);
-      addLogEntry(repository.id, `Warning: Could not auto-deploy documentation: ${deployError}`, 100, "completed");
+      addLogEntry(
+        repository.id,
+        `Warning: Could not auto-deploy documentation: ${deployError}`,
+        100,
+        "completed"
+      );
     }
 
     // Return success
@@ -527,13 +649,18 @@ async function generateDocumentation(repository: any, token: string | null) {
       success: true,
       message: "Documentation generated successfully",
       path: repoDir,
-      url: docusaurusUrl
+      url: docusaurusUrl,
     };
   } catch (error) {
     console.error("Error generating documentation:", error);
     // Make sure repository.id is defined to prevent errors
     if (repository && repository.id) {
-      addLogEntry(repository.id, `Error generating documentation: ${error}`, 0, "error");
+      addLogEntry(
+        repository.id,
+        `Error generating documentation: ${error}`,
+        0,
+        "error"
+      );
     } else {
       console.error("Repository ID is undefined in error handler");
     }
@@ -572,11 +699,14 @@ async function processRepoContent(
         ".github",
         "coverage",
         "__tests__",
-        "__mocks__"
+        "__mocks__",
       ];
       if (skipDirs.includes(item.name)) {
         if (repositoryId) {
-          addLogEntry(repositoryId, `Skipping directory: ${item.name} (common directory)`);
+          addLogEntry(
+            repositoryId,
+            `Skipping directory: ${item.name} (common directory)`
+          );
         }
         continue;
       }
@@ -624,7 +754,10 @@ async function processRepoContent(
           error
         );
         if (repositoryId) {
-          addLogEntry(repositoryId, `Error fetching subdirectory content for ${subdirPath}: ${error}`);
+          addLogEntry(
+            repositoryId,
+            `Error fetching subdirectory content for ${subdirPath}: ${error}`
+          );
         }
       }
     } else if (item.type === "file") {
@@ -648,17 +781,20 @@ async function processRepoContent(
           ).toString();
 
           // Analyze file to determine if it should be documented and its priority
-          const { shouldDocument, priority, reason } = analyzeFileForDocumentation(item.name, content);
-          
+          const { shouldDocument, priority, reason } =
+            analyzeFileForDocumentation(item.name, content);
+
           // Log the analysis result to server console and add to repository logs
-          const analysisMessage = `File ${item.name}: ${shouldDocument ? 'Will document' : 'Skipping'} (${priority} priority - ${reason})`;
+          const analysisMessage = `File ${item.name}: ${
+            shouldDocument ? "Will document" : "Skipping"
+          } (${priority} priority - ${reason})`;
           console.log(analysisMessage);
-          
+
           // Add to repository logs if this is a file we're documenting or skipping a potentially important file
-          if (repositoryId && (shouldDocument || priority !== 'low')) {
+          if (repositoryId && (shouldDocument || priority !== "low")) {
             addLogEntry(repositoryId, analysisMessage);
           }
-          
+
           // Skip files that shouldn't be documented
           if (!shouldDocument) {
             continue;
@@ -678,7 +814,10 @@ async function processRepoContent(
             if (!fs.existsSync(dirPathInDocs)) {
               fs.mkdirSync(dirPathInDocs, { recursive: true });
               if (repositoryId) {
-                addLogEntry(repositoryId, `Created directory: ${dirPathInDocs}`);
+                addLogEntry(
+                  repositoryId,
+                  `Created directory: ${dirPathInDocs}`
+                );
               }
             }
           } else {
@@ -690,22 +829,20 @@ async function processRepoContent(
             .replace(/\.[^/.]+$/, "")
             .replace(/\s+/g, "-")
             .toLowerCase();
-          
+
           // Create the proper path for the sidebar
-          const docPath = path
-            ? `${path}/${docFilename}`
-            : docFilename;
+          const docPath = path ? `${path}/${docFilename}` : docFilename;
 
           // Determine sidebar position based on priority
           let position;
           switch (priority) {
-            case 'high':
+            case "high":
               position = 2;
               break;
-            case 'medium':
+            case "medium":
               position = 5;
               break;
-            case 'low':
+            case "low":
             default:
               position = 10;
               break;
@@ -728,16 +865,24 @@ async function processRepoContent(
 
           // Add to the list of documented files with the proper path for Docusaurus
           documentedFiles.push(`${docPath}`);
-          
+
           if (repositoryId) {
-            addLogEntry(repositoryId, `Generated documentation for ${filePath} at ${docFilePath}`);
+            addLogEntry(
+              repositoryId,
+              `Generated documentation for ${filePath} at ${docFilePath}`
+            );
           }
-          console.log(`Generated documentation for ${filePath} at ${docFilePath}`);
+          console.log(
+            `Generated documentation for ${filePath} at ${docFilePath}`
+          );
         }
       } catch (error) {
         console.error(`Error processing file ${item.name}:`, error);
         if (repositoryId) {
-          addLogEntry(repositoryId, `Error processing file ${item.name}: ${error}`);
+          addLogEntry(
+            repositoryId,
+            `Error processing file ${item.name}: ${error}`
+          );
         }
       }
     }
@@ -781,7 +926,7 @@ function ensureDirectoriesExist() {
   if (!fs.existsSync(DOCS_DIR)) {
     fs.mkdirSync(DOCS_DIR, { recursive: true });
   }
-  
+
   // Create Docusaurus docs directory if it doesn't exist
   const docusaurusDocsDir = path.join(process.cwd(), "docs");
   if (!fs.existsSync(docusaurusDocsDir)) {
@@ -814,13 +959,13 @@ function setupDocusaurusConfig(repoSlug: string, fullName: string) {
     if (!fs.existsSync(docusaurusDir)) {
       fs.mkdirSync(docusaurusDir, { recursive: true });
     }
-    
+
     // Create docs directory for this repository
     const repoDocsDir = path.join(DOCS_DIR, repoSlug);
     if (!fs.existsSync(repoDocsDir)) {
       fs.mkdirSync(repoDocsDir, { recursive: true });
     }
-    
+
     // Create sidebars.js file if it doesn't exist
     const sidebarsPath = path.join(docusaurusDir, "sidebars.js");
     if (!fs.existsSync(sidebarsPath)) {
@@ -843,7 +988,7 @@ module.exports = {
 `;
       fs.writeFileSync(sidebarsPath, sidebarContent);
     }
-    
+
     // Create or update docusaurus.config.js if needed
     const configPath = path.join(docusaurusDir, "docusaurus.config.js");
     if (!fs.existsSync(configPath)) {
@@ -915,7 +1060,7 @@ module.exports = {
 };`;
       fs.writeFileSync(configPath, configContent);
     }
-    
+
     console.log(`Setup Docusaurus configuration for ${fullName}`);
   } catch (error) {
     console.error(`Error setting up Docusaurus config for ${fullName}:`, error);
@@ -931,16 +1076,16 @@ function updateMainSidebar(repoSlug: string) {
   try {
     const docusaurusDir = path.join(process.cwd(), "docs");
     const sidebarsPath = path.join(docusaurusDir, "sidebars.js");
-    
+
     if (fs.existsSync(sidebarsPath)) {
-      let sidebarContent = fs.readFileSync(sidebarsPath, 'utf8');
-      
+      let sidebarContent = fs.readFileSync(sidebarsPath, "utf8");
+
       // Check if the repository is already in the sidebar
       if (!sidebarContent.includes(`'${repoSlug}'`)) {
         // Simple string replacement to add the repository to the sidebar
         // This is a basic approach - for more complex sidebars, consider using a proper parser
         sidebarContent = sidebarContent.replace(
-          'items: [],',
+          "items: [],",
           `items: [
       {
         type: 'doc',
@@ -949,7 +1094,7 @@ function updateMainSidebar(repoSlug: string) {
       },
     ],`
         );
-        
+
         fs.writeFileSync(sidebarsPath, sidebarContent);
         console.log(`Updated main sidebar to include ${repoSlug}`);
       }
