@@ -63,6 +63,7 @@ async function makeAIRequest(messages: any[]): Promise<string> {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       },
+      // TODO:  you implement the ai
       body: JSON.stringify({
         messages,
         model: "gpt-4o",
