@@ -25,42 +25,7 @@ export default function PageLayout({
   const isDashboard = pathname === '/dashboard';
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/" className="flex items-center">
-                <svg className="h-8 w-8 text-indigo-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 12L11 14L15 10M12 3L4 5V11.09C4 16.14 7.41 20.85 12 22C16.59 20.85 20 16.14 20 11.09V5L12 3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span className="ml-2 text-xl font-bold text-gray-900">Doc Builder</span>
-              </Link>
-            </div>
-            <nav className="flex items-center space-x-4">
-              {!isDashboard && (
-                <Link
-                  href="/dashboard"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Dashboard
-                </Link>
-              )}
-              {session?.user && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-700">
-                    {session.user.name}
-                  </span>
-                  <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-medium">
-                    {session.user.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                </div>
-              )}
-            </nav>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-gray-50 pt-24"> {/* Increased padding-top to create more space between navbar and content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -88,4 +53,4 @@ export default function PageLayout({
       </main>
     </div>
   );
-} 
+}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function GenerateDocs() {
   const params = useParams();
@@ -260,22 +261,35 @@ export default function GenerateDocs() {
   }, [repoId, router]);
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-gray-200">
+    <div className="min-h-screen bg-black text-white relative overflow-hidden">
+      {/* Dynamic background elements */}
+      <div className="absolute inset-0 z-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-gradient-to-r from-indigo-600/20 to-blue-600/20 blur-[100px] animate-[float_15s_ease-in-out_infinite]"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-gradient-to-r from-purple-600/20 to-pink-600/20 blur-[100px] animate-[float_20s_ease-in-out_infinite_reverse]"></div>
+        
+        {/* Grid pattern */}
+        <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] z-0"></div>
+        
+        {/* Animated orbs */}
+        <div className="absolute top-1/3 right-1/3 w-2 h-2 rounded-full bg-blue-500 opacity-70 animate-ping-slow"></div>
+        <div className="absolute top-2/3 left-1/3 w-3 h-3 rounded-full bg-indigo-500 opacity-60 animate-ping-slow animation-delay-1000"></div>
+        <div className="absolute bottom-1/4 right-1/2 w-2 h-2 rounded-full bg-purple-500 opacity-70 animate-ping-slow animation-delay-2000"></div>
+      </div>
+      <div className="container mx-auto px-4 py-8 relative z-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-4 border-b border-white/10">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Generate Documentation</h1>
-            <p className="text-gray-600">
+            <h1 className="text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500 font-space-grotesk">Generate Documentation</h1>
+            <p className="text-gray-400">
               {repoDetails ? (
-                <>Generating documentation for <span className="font-medium">{repoDetails.name}</span></>
+                <>Generating documentation for <span className="font-medium text-white">{repoDetails.name}</span></>
               ) : (
                 'Processing repository...'  
               )}
             </p>
             
             <div className="mt-4 flex items-center">
-              <div className="text-sm text-gray-600 flex items-center">
-                <svg className="h-5 w-5 text-blue-500 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="text-sm text-gray-400 flex items-center">
+                <svg className="h-5 w-5 text-blue-400 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span>Using Tree-sitter for enhanced code structure analysis</span>
@@ -284,7 +298,7 @@ export default function GenerateDocs() {
           </div>
           <Link 
             href="/dashboard"
-            className="mt-4 md:mt-0 bg-white text-gray-700 hover:bg-gray-100 px-4 py-2 rounded-lg border border-gray-300 shadow-sm transition-colors flex items-center gap-2"
+            className="mt-4 md:mt-0 glass-effect text-white hover:bg-indigo-600/20 px-4 py-2 rounded-xl border border-white/10 hover:border-indigo-400/30 shadow-glow-sm transition-all duration-300 flex items-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -293,19 +307,19 @@ export default function GenerateDocs() {
           </Link>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
           {/* Main Content */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-md p-8 border border-gray-200">
+            <div className="glass-card rounded-xl shadow-glow p-8 border border-white/10 backdrop-blur-sm">
               {error ? (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                <div className="bg-red-900/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-6 shadow-glow-sm">
                   <div className="flex items-start">
-                    <svg className="h-5 w-5 text-red-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                    <svg className="h-5 w-5 text-red-400 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
                     <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">Error</h3>
-                      <div className="mt-1 text-sm text-red-700">{error}</div>
+                      <h3 className="text-sm font-medium text-red-300">Error</h3>
+                      <div className="mt-1 text-sm text-red-400">{error}</div>
                     </div>
                   </div>
                 </div>
@@ -315,27 +329,27 @@ export default function GenerateDocs() {
                 {isGenerating ? (
                   <>
                     <div className="relative">
-                      <div className="w-24 h-24 rounded-full bg-blue-100 mx-auto flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent"></div>
+                      <div className="w-24 h-24 rounded-full bg-blue-900/30 mx-auto flex items-center justify-center border border-blue-500/30 shadow-glow">
+                        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-400 border-t-transparent"></div>
                       </div>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
                     </div>
-                    <h2 className="text-2xl font-semibold text-gray-900 mt-6 mb-2">{status}</h2>
-                    <p className="text-gray-600 text-base max-w-lg mx-auto">
+                    <h2 className="text-2xl font-semibold text-white mt-6 mb-2 font-space-grotesk">{status}</h2>
+                    <p className="text-gray-400 text-base max-w-lg mx-auto">
                       We're analyzing the repository and generating comprehensive documentation.
                       This process may take a few minutes depending on the size of the codebase.
                     </p>
                     
                     {/* Helpful tips during generation */}
-                    <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto text-left">
-                      <h3 className="text-sm font-medium text-blue-800 mb-2">While you wait</h3>
-                      <ul className="text-sm text-blue-700 space-y-2">
+                    <div className="mt-8 bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 max-w-lg mx-auto text-left shadow-glow-sm">
+                      <h3 className="text-sm font-medium text-blue-300 mb-2 font-space-grotesk">While you wait</h3>
+                      <ul className="text-sm text-blue-400 space-y-2">
                         <li className="flex items-start">
-                          <svg className="h-5 w-5 text-blue-500 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="h-5 w-5 text-blue-400 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           <span>Tree-sitter is extracting code structure and grouping files by features</span>
@@ -353,130 +367,16 @@ export default function GenerateDocs() {
                           <span>You'll be redirected to your documentation when complete</span>
                         </li>
                       </ul>
+                      <p className="text-sm mt-1">Logs will appear here as the documentation is generated</p>
                     </div>
-                    
-                    {/* Progress Indicators */}
-                    <div className="mt-8 max-w-md mx-auto">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">Documentation Generation</span>
-                        <span className="text-sm text-gray-500">{progress}% Complete</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div 
-                          className={`bg-blue-600 h-2.5 rounded-full ${progress < 100 ? 'animate-pulse' : ''}`} 
-                          style={{width: `${progress}%`}}
-                        ></div>
-                      </div>
-                      
-                      {/* Step Indicators */}
-                      <div className="mt-8">
-                        <div className="space-y-4">
-                          {generationSteps.map((step, index) => (
-                            <div key={step.id} className="flex items-center">
-                              <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center
-                                ${step.completed ? 'bg-green-100 text-green-600' : 
-                                  step.error ? 'bg-red-100 text-red-600' :
-                                  step.current ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
-                                {step.completed ? (
-                                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                ) : step.error ? (
-                                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                ) : step.current ? (
-                                  <div className="h-3 w-3 bg-blue-600 rounded-full animate-pulse"></div>
-                                ) : (
-                                  <span className="text-xs">{index + 1}</span>
-                                )}
-                              </div>
-                              <div className="ml-3">
-                                <p className={`text-sm font-medium ${step.current ? 'text-blue-600' : step.completed ? 'text-green-600' : step.error ? 'text-red-600' : 'text-gray-500'}`}>
-                                  {step.label}
-                                </p>
-                              </div>
-                              {index < generationSteps.length - 1 && (
-                                <div className="ml-4 flex-1 min-w-0">
-                                  <div className={`h-0.5 ${step.completed ? 'bg-green-400' : 'bg-gray-200'}`}></div>
-                                </div>
-                              )}
-                            </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : error ? (
-                <div className="text-center py-12">
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-lg mx-auto text-left">
-                    <h3 className="text-lg font-medium text-red-800 mb-2">Error</h3>
-                    <p className="text-red-600">{error}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-lg mx-auto text-left">
-                    <h3 className="text-lg font-medium text-green-800 mb-2">Documentation Generated</h3>
-                    <p className="text-green-600">Your documentation has been successfully generated.</p>
-                  </div>
-                </div>
-              )}
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
           
-          {/* Sidebar - Logs */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-              <div className="p-4 bg-gray-50 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Generation Logs</h3>
-              </div>
-              <div id="logs-container" className="p-4 max-h-[500px] overflow-y-auto">
-                {logs.length > 0 ? (
-                  <div className="space-y-2 font-mono text-sm">
-                    {logs.map((log, index) => {
-                      // Check if log has a timestamp prefix [HH:MM:SS]
-                      const hasTimestamp = /^\[\d{1,2}:\d{1,2}:\d{1,2}\]/.test(log);
-                      const timestamp = hasTimestamp ? log.match(/^\[(.*?)\]/)?.[0] : `[${new Date().toLocaleTimeString()}]`;
-                      const message = hasTimestamp ? log.replace(/^\[.*?\]\s*/, '') : log;
-                      
-                      // Determine message type for styling
-                      const isError = /error|fail|exception/i.test(message);
-                      const isWarning = /warn|caution/i.test(message);
-                      const isSuccess = /success|complete|done/i.test(message);
-                      
-                      let messageClass = 'text-gray-800';
-                      if (isError) messageClass = 'text-red-600';
-                      if (isWarning) messageClass = 'text-amber-600';
-                      if (isSuccess) messageClass = 'text-green-600';
-                      
-                      return (
-                        <div key={index} className="py-1 border-b border-gray-100 last:border-0">
-                          <span className="text-gray-500">{timestamp}</span> {' '}
-                          <span className={messageClass}>{message}</span>
-                          {isError && (
-                            <div className="mt-1 ml-6 text-xs text-red-500 bg-red-50 p-1 rounded">
-                              Tip: Check repository permissions and structure if you encounter errors
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p>No logs available yet</p>
-                    <p className="text-sm mt-1">Logs will appear here as the documentation is generated</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-            
-            {/* Repository Info */}
+          {/* Repository Info */}
+          <div>
             {repoDetails && (
               <div className="bg-white rounded-xl shadow-md border border-gray-200 mt-6 p-4">
                 <h3 className="text-lg font-medium text-gray-900 mb-3">Repository Details</h3>

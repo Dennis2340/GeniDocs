@@ -406,25 +406,51 @@ export async function getRepositoryFiles(repo: Repository, octokit: Octokit): Pr
   // Helper function to recursively get files from a directory
   async function getFilesFromPath(dirPath = ''): Promise<void> {
     try {
-      const { data } = await octokit.repos.getContent({
+      console.log(`Fetching contents for path: ${dirPath || 'root'}`);
+      
+      const response = await octokit.repos.getContent({
         owner: repo.owner,
         repo: repo.name,
         path: dirPath,
       });
       
+      // Check if response is valid
+      if (!response || !response.data) {
+        console.warn(`No data received for path: ${dirPath}`);
+        return;
+      }
+      
+      const data = response.data;
+      
       // Process each item (file or directory)
-      for (const item of Array.isArray(data) ? data : [data]) {
+      const items = Array.isArray(data) ? data : [data];
+      
+      for (const item of items) {
+        // Validate item structure
+        if (!item || typeof item !== 'object') {
+          console.warn(`Invalid item structure:`, item);
+          continue;
+        }
+        
         if (item.type === 'file') {
           // Skip binary files and files we can't parse
-          const extension = path.extname(item.path);
-          if (!extensionToParser[extension]) continue;
+          const extension = path.extname(item.path || '');
+          if (!extensionToParser[extension]) {
+            console.log(`Skipping unsupported file: ${item.path}`);
+            continue;
+          }
           
           // Skip large files
-          if (item.size > 1000000) continue; // Skip files larger than ~1MB
+          if (item.size && item.size > 1000000) {
+            console.log(`Skipping large file: ${item.path} (${item.size} bytes)`);
+            continue;
+          }
           
           try {
-            // Get file content
-            const { data: fileData } = await octokit.repos.getContent({
+            console.log(`Fetching content for file: ${item.path}`);
+            
+            // Get file content with proper error handling
+            const fileResponse = await octokit.repos.getContent({
               owner: repo.owner,
               repo: repo.name,
               path: item.path,
@@ -433,24 +459,120 @@ export async function getRepositoryFiles(repo: Repository, octokit: Octokit): Pr
               },
             });
             
+            // Validate file response
+            if (!fileResponse || fileResponse.data === undefined) {
+              console.warn(`No content received for file: ${item.path}`);
+              continue;
+            }
+            
+            let content: string;
+            
+            // Handle different response types
+            if (typeof fileResponse.data === 'string') {
+              content = fileResponse.data;
+            } else if (fileResponse.data instanceof ArrayBuffer) {
+              content = new TextDecoder().decode(fileResponse.data);
+            } else if (Buffer.isBuffer(fileResponse.data)) {
+              content = fileResponse.data.toString('utf8');
+            } else {
+              // Handle base64 encoded content (fallback)
+              try {
+                content = Buffer.from(fileResponse.data as any, 'base64').toString('utf8');
+              } catch (decodeError) {
+                console.warn(`Failed to decode content for ${item.path}:`, decodeError);
+                continue;
+              }
+            }
+            
             files.push({
               path: item.path,
-              content: typeof fileData === 'string' ? fileData : Buffer.from(fileData as any).toString('utf8'),
+              content: content,
             });
+            
+            console.log(`Successfully processed file: ${item.path}`);
+            
           } catch (fileError: any) {
-            console.warn(`Error fetching content for ${item.path}:`, fileError.message);
+            console.error(`Error fetching content for ${item.path}:`, {
+              message: fileError.message,
+              status: fileError.status,
+              response: fileError.response?.data ? 'Response data present' : 'No response data'
+            });
+            
+            // If we get HTML instead of JSON, it's likely an auth or API issue
+            if (fileError.message?.includes('<!DOCTYPE') || fileError.message?.includes('Unexpected token')) {
+              console.error('Received HTML response instead of JSON - possible authentication issue');
+              throw new Error('GitHub API authentication failed or repository access denied');
+            }
           }
         } else if (item.type === 'dir') {
           // Skip node_modules, .git, and other common directories to ignore
-          const dirsToIgnore = ['node_modules', '.git', 'dist', 'build', 'target', 'out', 'bin', 'obj'];
-          if (dirsToIgnore.some(dir => item.path.includes(dir))) continue;
+          const dirsToIgnore = ['node_modules', '.git', 'dist', 'build', 'target', 'out', 'bin', 'obj', '.next', 'coverage'];
+          const shouldSkip = dirsToIgnore.some(dir => {
+            const itemPath = item.path || '';
+            return itemPath.includes(dir) || itemPath.split('/').includes(dir);
+          });
+          
+          if (shouldSkip) {
+            console.log(`Skipping ignored directory: ${item.path}`);
+            continue;
+          }
           
           // Recursively get files from subdirectory
           await getFilesFromPath(item.path);
         }
       }
     } catch (error: any) {
-      console.warn(`Error fetching directory content for ${dirPath}:`, error.message);
+      console.error(`Error fetching directory content for ${dirPath}:`, {
+        message: error.message,
+        status: error.status,
+        response: error.response?.data ? 'Response data present' : 'No response data'
+      });
+      
+      // Check for specific error types
+      if (error.status === 404) {
+        console.error(`Repository or path not found: ${repo.owner}/${repo.name}${dirPath ? `/${dirPath}` : ''}`);
+        throw new Error(`Repository not found or path does not exist: ${repo.owner}/${repo.name}`);
+      } else if (error.status === 401 || error.status === 403) {
+        console.error('Authentication or permission error');
+        throw new Error('GitHub authentication failed or insufficient permissions to access repository');
+      } else if (error.message?.includes('<!DOCTYPE') || error.message?.includes('Unexpected token')) {
+        console.error('Received HTML response instead of JSON - possible authentication issue');
+        throw new Error('GitHub API authentication failed or repository access denied');
+      }
+      
+      // For other errors, we might want to continue processing other directories
+      console.warn(`Continuing despite error in directory: ${dirPath}`);
+    }
+  }
+  
+  try {
+    // Test authentication first
+    console.log('Testing GitHub API authentication...');
+    await octokit.users.getAuthenticated();
+    console.log('GitHub API authentication successful');
+    
+    // Test repository access
+    console.log(`Testing access to repository: ${repo.owner}/${repo.name}`);
+    await octokit.repos.get({
+      owner: repo.owner,
+      repo: repo.name,
+    });
+    console.log('Repository access confirmed');
+    
+  } catch (authError: any) {
+    console.error('Authentication or repository access test failed:', {
+      message: authError.message,
+      status: authError.status
+    });
+    
+    if (authError.status === 401) {
+      throw new Error('GitHub token is invalid or expired');
+    } else if (authError.status === 403) {
+      throw new Error('Insufficient permissions to access the repository');
+    } else if (authError.status === 404) {
+      throw new Error(`Repository ${repo.owner}/${repo.name} not found or not accessible`);
+    } else {
+      throw new Error(`GitHub API error: ${authError.message}`);
     }
   }
   
@@ -459,6 +581,7 @@ export async function getRepositoryFiles(repo: Repository, octokit: Octokit): Pr
   
   if (files.length === 0) {
     console.warn('No files were retrieved from the repository');
+    throw new Error('No parseable files found in the repository');
   } else {
     console.log(`Successfully retrieved ${files.length} files from repository`);
   }
