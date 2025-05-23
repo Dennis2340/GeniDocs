@@ -20,7 +20,7 @@ const config = {
       ({
         docs: {
           sidebarPath: require.resolve("./sidebars.js"),
-          routeBasePath: "/",
+          routeBasePath: "/docs",
           path: "docs",
           sidebarCollapsible: true,
           sidebarCollapsed: false,

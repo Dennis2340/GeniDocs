@@ -8,48 +8,175 @@ const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
 /**
- * Generates markdown documentation from a file's content using the x.ai Grok model
- * @param filename The name of the file
- * @param content The content of the file
- * @returns Promise<string> The generated markdown documentation
+ * Utility function to add delay between API calls
+ * @param ms Milliseconds to wait
  */
-async function generateMarkdownFromFile(
-  filename: string,
-  content: string
-): Promise<string> {
-  try {
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Retry function with exponential backoff
+ * @param fn Function to retry
+ * @param maxRetries Maximum number of retries
+ * @param baseDelay Base delay in milliseconds
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // If it's a rate limit error (429) or server error (5xx), retry
+      if (error.message.includes('429') || error.message.includes('5')) {
+        if (attempt < maxRetries) {
+          const delayTime = baseDelay * Math.pow(2, attempt); // Exponential backoff
+          console.log(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}). Retrying in ${delayTime}ms...`);
+          await delay(delayTime);
+          continue;
+        }
+      }
+      
+      // If it's not a retryable error, throw immediately
+      throw error;
+    }
+  }
+  
+  throw lastError!;
+}
+
+/**
+ * Makes an API call to x.ai with rate limiting protection
+ * @param messages The messages to send
+ * @returns Promise<string> The AI response
+ */
+async function makeAIRequest(messages: any[]): Promise<string> {
+  return retryWithBackoff(async () => {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.XAI_API_KEY}`,
+        "Authorization": `Bearer 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`,
       },
       body: JSON.stringify({
-        messages: [
-          {
-            role: "system",
-            content: "You are a documentation expert that creates clear, concise, and helpful markdown documentation for code files. Include explanations of what the code does, its purpose, and how it fits into the larger application."
-          },
-          {
-            role: "user",
-            content: `Please generate comprehensive markdown documentation for this file named '${filename}':\n\n\`\`\`\n${content}\n\`\`\``
-          }
-        ],
-        model: "grok-3-latest",
+        messages,
+        model: "gpt-4o",
         stream: false,
         temperature: 0.2
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`AI API request failed with status ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`AI API request failed with status ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
     return data.choices[0].message.content;
-  } catch (error:any) {
+  });
+}
+/**
+ * Generates markdown documentation from a file's content using the x.ai Grok model
+ * @param filename The name of the file
+ * @param content The content of the file
+ * @param docId Unique ID for the document
+ * @param title The title of the document
+ * @returns Promise<string> The generated markdown documentation with Docusaurus frontmatter
+ */
+async function generateMarkdownFromFile(
+  filename: string,
+  content: string,
+  docId: string = '',
+  title: string = ''
+): Promise<string> {
+  try {
+    // Create a more descriptive title from the filename if not provided
+    if (!title) {
+      title = filename
+        .split('/')
+        .pop() // Get the last part of the path
+        ?.replace(/\.[^/.]+$/, '') // Remove file extension
+        ?.split(/[-_.]/) // Split by common separators
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
+        .join(' ') || filename; // Join with spaces or use original if processing fails
+    }
+    
+    // Create a unique ID if not provided
+    if (!docId) {
+      docId = filename
+        .replace(/\.[^/.]+$/, '') // Remove file extension
+        .replace(/[^a-zA-Z0-9-_]/g, '-') // Replace special chars with hyphens
+        .toLowerCase();
+    }
+    
+    const messages = [
+      {
+        role: "system",
+        content: `You are a documentation expert that creates clear, concise, and helpful documentation for code files. Your output will be used in a Docusaurus site, so follow these guidelines:
+
+1. Structure your response with proper markdown headings (## for sections, ### for subsections)
+2. Use code blocks with proper language syntax highlighting
+3. Create a clear overview at the beginning
+4. Document functions, classes, and important variables with examples where appropriate
+5. Explain the purpose of the code and how it fits into the larger application
+6. Use tables for structured information where appropriate
+7. Include a "Usage Examples" section if applicable
+8. DO NOT include frontmatter - this will be added automatically
+9. Start directly with the main content - no need for a title as it will be added automatically`
+      },
+      {
+        role: "user",
+        content: `Please generate comprehensive documentation for this file named '${filename}':\n\n\`\`\`\n${content}\n\`\`\``
+      }
+    ];
+
+    const markdownContent = await makeAIRequest(messages);
+    
+    // Add Docusaurus frontmatter
+    const frontmatter = `---
+id: "${docId}"
+title: "${title}"
+sidebar_label: "${title}"
+---
+
+`;
+    
+    return frontmatter + markdownContent;
+  } catch (error: any) {
     console.error("Error generating documentation:", error);
     throw new Error(`Failed to generate documentation: ${error.message}`);
+  }
+}
+
+/**
+ * Writes a markdown document to the Docusaurus docs folder
+ * @param path The path in the docs folder
+ * @param content The markdown content
+ * @returns Promise<string> The file path
+ */
+async function writeToDocusaurusFolder(
+  path: string,
+  content: string
+): Promise<string> {
+  try {
+    const fs = require('fs').promises;
+    const nodePath = require('path');
+    
+    // Ensure the directory exists
+    const dir = nodePath.dirname(path);
+    await fs.mkdir(dir, { recursive: true });
+    
+    // Write the file
+    await fs.writeFile(path, content, 'utf8');
+    return path;
+  } catch (error: any) {
+    console.error("Error writing to Docusaurus folder:", error);
+    throw new Error(`Failed to write to Docusaurus folder: ${error.message}`);
   }
 }
 
@@ -68,18 +195,18 @@ async function uploadToFirebaseStorage(
     await uploadString(storageRef, content, 'raw');
     const downloadUrl = await getDownloadURL(storageRef);
     return downloadUrl;
-  } catch (error:any) {
+  } catch (error: any) {
     console.error("Error uploading to Firebase Storage:", error);
     throw new Error(`Failed to upload to Firebase Storage: ${error.message}`);
   }
 }
 
 /**
- * Generates documentation for a file and uploads it to Firebase Storage
+ * Generates documentation for a file and saves it to Docusaurus docs folder
  * @param filename The name of the file
  * @param content The content of the file
  * @param repoName The name of the repository
- * @returns Promise<{path: string, url: string}> The Firebase path and download URL
+ * @returns Promise<{path: string, url: string}> The local path and Firebase URL
  */
 export async function generateAndUploadDoc({
   filename,
@@ -94,22 +221,28 @@ export async function generateAndUploadDoc({
     // Generate markdown documentation
     const markdown = await generateMarkdownFromFile(filename, content);
     
-    // Create a clean path for Firebase Storage
-    // Replace file extension with .md and handle special characters
+    // Create a clean path for both local and Firebase storage
     const cleanFilename = filename
       .replace(/\.[^/.]+$/, "") // Remove file extension
       .replace(/[^\w\-_\/]/g, "_"); // Replace special chars with underscore
     
+    // Local Docusaurus path
+    const localPath = `docs/docs/${repoName}/${cleanFilename}.md`;
+    
+    // Firebase Storage path
     const firebasePath = `docs/doc-builder/${repoName}/${cleanFilename}.md`;
+    
+    // Write to local Docusaurus folder
+    await writeToDocusaurusFolder(localPath, markdown);
     
     // Upload to Firebase Storage
     const downloadUrl = await uploadToFirebaseStorage(firebasePath, markdown);
     
     return {
-      path: firebasePath,
+      path: localPath,
       url: downloadUrl
     };
-  } catch (error:any) {
+  } catch (error: any) {
     console.error("Error in generateAndUploadDoc:", error);
     throw new Error(`Documentation generation failed: ${error.message}`);
   }
@@ -137,86 +270,205 @@ export async function generateRepoMetadata(
     
     const downloadUrl = await uploadToFirebaseStorage(metadataPath, metadataContent);
     return downloadUrl;
-  } catch (error:any) {
+  } catch (error: any) {
     console.error("Error generating repository metadata:", error);
     throw new Error(`Failed to generate repository metadata: ${error.message}`);
   }
 }
 
 /**
- * Generates documentation from structured code information
+ * Generates documentation from structured code information with rate limiting
+ * and organized folder structure based on feature categories
  * @param codeStructure The structured code information grouped by feature
+ * @param repoName The name of the repository
  * @returns Promise<{ documentation: any, urls: { [key: string]: string } }> The generated documentation and download URLs
  */
-export async function generateAIDocumentation(codeStructure: Record<string, any[]>): Promise<{ documentation: any, urls: { [key: string]: string } }> {
+export async function generateAIDocumentation(
+  codeStructure: Record<string, any[]>, 
+  repoName: string
+): Promise<{ documentation: any, urls: { [key: string]: string } }> {
   try {
     const documentation: Record<string, any> = {};
     const urls: Record<string, string> = {};
+    const features = Object.entries(codeStructure);
     
-    // Process each feature group
-    for (const [feature, files] of Object.entries(codeStructure)) {
-      documentation[feature] = [];
-      
-      // Generate prompt for the AI based on the feature and its files
-      const prompt = `Generate comprehensive documentation for the '${feature}' feature of this application. Here's the code structure:\n\n${JSON.stringify(files, null, 2)}`;
-      
-      // Call AI to generate documentation for this feature
-      const response = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.XAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "system",
-              content: "You are a documentation expert that creates clear, concise, and helpful markdown documentation for code features. Analyze the provided code structure and generate comprehensive documentation that explains the purpose, functionality, and relationships between components."
-            },
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          model: "grok-3-latest",
-          stream: false,
-          temperature: 0.2
-        }),
-      });
+    // Feature category mapping for organized folder structure
+    const featureKeywords: Record<string, string[]> = {
+      'Authentication': ['auth', 'login', 'register', 'password', 'user'],
+      'API': ['api', 'endpoint', 'route', 'controller'],
+      'Database': ['db', 'database', 'model', 'schema', 'query', 'repository'],
+      'UI': ['component', 'view', 'page', 'template', 'style', 'css', 'ui'],
+      'Utilities': ['util', 'helper', 'common', 'shared'],
+      'Testing': ['test', 'spec', 'mock'],
+      'Configuration': ['config', 'setting', 'env'],
+      'Security': ['security', 'permission', 'role', 'encrypt'],
+      'Logging': ['log', 'logger', 'trace', 'debug'],
+      'Middleware': ['middleware', 'interceptor', 'filter'],
+    };
 
-      if (!response.ok) {
-        throw new Error(`AI API request failed with status ${response.status}`);
+    /**
+     * Determines the category folder for a feature based on keywords
+     */
+    function getCategoryFolder(featureName: string): string {
+      const lowerFeatureName = featureName.toLowerCase();
+      
+      for (const [category, keywords] of Object.entries(featureKeywords)) {
+        if (keywords.some(keyword => lowerFeatureName.includes(keyword))) {
+          return category.toLowerCase();
+        }
       }
+      
+      return 'miscellaneous'; // Default category
+    }
 
-      const data = await response.json();
-      const markdownContent = data.choices[0].message.content;
+    console.log(`Processing ${features.length} features with rate limiting...`);
+    
+    // Process each feature group sequentially with delays
+    for (let i = 0; i < features.length; i++) {
+      const [feature, files] = features[i];
       
-      // Create a clean feature name for the file path
-      const cleanFeatureName = feature.replace(/[^\w\-_\/]/g, "_").toLowerCase();
-      const docPath = `docs/features/${cleanFeatureName}.md`;
+      console.log(`Processing feature ${i + 1}/${features.length}: ${feature}`);
       
-      // Upload the documentation to Firebase Storage
-      const downloadUrl = await uploadToFirebaseStorage(docPath, markdownContent);
-      
-      // Store the documentation and URL
-      documentation[feature] = {
-        content: markdownContent,
-        files: files.map(file => file.path)
-      };
-      
-      urls[feature] = downloadUrl;
+      try {
+        documentation[feature] = [];
+        
+        // Generate prompt for the AI based on the feature and its files
+        const prompt = `Generate comprehensive documentation for the '${feature}' feature of this application. Here's the code structure:\n\n${JSON.stringify(files, null, 2)}`;
+        
+        const messages = [
+          {
+            role: "system",
+            content: "You are a documentation expert that creates clear, concise, and helpful markdown documentation for code features. Analyze the provided code structure and generate comprehensive documentation that explains the purpose, functionality, and relationships between components. Format the output as proper markdown with headers, code blocks, and clear explanations."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ];
+
+        // Call AI to generate documentation for this feature
+        let markdownContent = await makeAIRequest(messages);
+        
+        // Determine the category folder for this feature
+        const categoryFolder = getCategoryFolder(feature);
+        
+        // Create a clean feature name for the file path
+        const cleanFeatureName = feature.replace(/[^\w\-_\/]/g, "_").toLowerCase();
+        
+        // Create a proper title from the feature name
+        const featureTitle = feature
+          .split(/[-_.]/) // Split by common separators
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
+          .join(' '); // Join with spaces
+        
+        // Create a unique ID for the document
+        const docId = `${repoName.toLowerCase()}-${categoryFolder}-${cleanFeatureName}`;
+        
+        // Add Docusaurus frontmatter
+        const frontmatter = `---
+id: "${docId}"
+title: "${featureTitle}"
+sidebar_label: "${featureTitle}"
+sidebar_position: ${i + 1}
+description: "Documentation for the ${featureTitle} feature"
+---
+
+`;
+        
+        // Add frontmatter to the markdown content
+        markdownContent = frontmatter + markdownContent;
+        
+        // Local Docusaurus path with category organization
+        const localDocPath = `docs/docs/${repoName}/${categoryFolder}/${cleanFeatureName}.md`;
+        
+        // Firebase Storage path with category organization
+        const firebaseDocPath = `docs/features/${repoName}/${categoryFolder}/${cleanFeatureName}.md`;
+        
+        // Write to local Docusaurus folder
+        await writeToDocusaurusFolder(localDocPath, markdownContent);
+        
+        // Upload the documentation to Firebase Storage
+        const downloadUrl = await uploadToFirebaseStorage(firebaseDocPath, markdownContent);
+        
+        // Store the documentation and URL
+        documentation[feature] = {
+          content: markdownContent,
+          files: files.map(file => file.path),
+          category: categoryFolder,
+          localPath: localDocPath
+        };
+        
+        urls[feature] = downloadUrl;
+        
+        console.log(`✓ Successfully processed feature: ${feature} (category: ${categoryFolder})`);
+        
+        // Add delay between requests to avoid rate limiting (except for the last one)
+        if (i < features.length - 1) {
+          console.log(`Waiting 2 seconds before next request...`);
+          await delay(2000); // 2 second delay between requests
+        }
+        
+      } catch (error: any) {
+        console.error(`Error processing feature '${feature}':`, error);
+        // Continue with other features instead of failing completely
+        const categoryFolder = getCategoryFolder(feature);
+        const cleanFeatureName = feature.replace(/[^\w\-_\/]/g, "_").toLowerCase();
+        const errorContent = `# ${feature}\n\n⚠️ Documentation generation failed: ${error.message}`;
+        
+        // Still try to write the error document locally
+        try {
+          const localDocPath = `docs/docs/${repoName}/${categoryFolder}/${cleanFeatureName}.md`;
+          await writeToDocusaurusFolder(localDocPath, errorContent);
+        } catch (writeError) {
+          console.error(`Failed to write error document for ${feature}:`, writeError);
+        }
+        
+        documentation[feature] = {
+          content: errorContent,
+          files: files.map(file => file.path),
+          category: categoryFolder,
+          error: true
+        };
+      }
     }
     
-    // Generate a combined documentation file with links to all features
-    const combinedMarkdown = generateMarkdownFromTemplate("feature-overview", {
-      features: Object.keys(documentation),
-      featureUrls: urls,
-      generatedAt: new Date().toISOString()
-    });
-    
-    const overviewPath = `docs/features/overview.md`;
-    const overviewUrl = await uploadToFirebaseStorage(overviewPath, combinedMarkdown);
-    urls["overview"] = overviewUrl;
+    try {
+      // Generate a combined documentation file with links to all features
+      let combinedMarkdown = generateMarkdownFromTemplate("feature-overview", {
+        features: Object.keys(documentation),
+        featureUrls: urls,
+        generatedAt: new Date().toISOString(),
+        repoName
+      });
+      
+      // Add Docusaurus frontmatter to the overview document
+      const frontmatter = `---
+id: "README"
+title: "${repoName} Documentation"
+sidebar_label: "Overview"
+sidebar_position: 1
+slug: "/"
+---
+
+`;
+      
+      // Add frontmatter to the markdown content
+      combinedMarkdown = frontmatter + combinedMarkdown;
+      
+      // Local overview path
+      const localOverviewPath = `docs/docs/${repoName}/README.md`;
+      const firebaseOverviewPath = `docs/features/${repoName}/overview.md`;
+      
+      // Write overview locally and upload to Firebase
+      await writeToDocusaurusFolder(localOverviewPath, combinedMarkdown);
+      const overviewUrl = await uploadToFirebaseStorage(firebaseOverviewPath, combinedMarkdown);
+      urls["overview"] = overviewUrl;
+      
+      console.log(`✓ Generated overview documentation at: ${localOverviewPath}`);
+    } catch (error: any) {
+      console.error("Error generating overview:", error);
+      // This is non-critical, so we don't fail the entire process
+    }
     
     return {
       documentation,

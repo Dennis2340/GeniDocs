@@ -1,34 +1,61 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * Custom CSS for GeniDocs documentation
+ * Enhanced styling for auto-generated documentation
  */
 
-/* You can override the default Infima variables here. */
+/* Primary color palette - using a blue theme */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
+  --ifm-color-primary: #3578e5; /* Modern blue */
+  --ifm-color-primary-dark: #2e6ad1;
+  --ifm-color-primary-darker: #2b63c4;
+  --ifm-color-primary-darkest: #2352a2;
+  --ifm-color-primary-light: #4a86e8;
+  --ifm-color-primary-lighter: #5a91ea;
+  --ifm-color-primary-lightest: #7ba7ef;
+  
+  /* Typography */
+  --ifm-font-size-base: 16px;
+  --ifm-code-font-size: 90%;
+  --ifm-font-family-base: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  --ifm-font-family-monospace: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --ifm-heading-font-weight: 600;
+  
+  /* Spacing */
+  --ifm-spacing-horizontal: 1.5rem;
+  --ifm-spacing-vertical: 1.5rem;
+  
+  /* Code blocks */
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-code-background: rgba(0, 0, 0, 0.05);
+  --ifm-code-border-radius: 6px;
+  --ifm-code-padding-vertical: 0.2rem;
+  --ifm-code-padding-horizontal: 0.4rem;
+  
+  /* Other */
+  --ifm-global-radius: 0.5rem;
+  --ifm-toc-border-color: var(--ifm-color-emphasis-200);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+/* Dark mode colors */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-color-primary: #4e89e8;
+  --ifm-color-primary-dark: #3776e3;
+  --ifm-color-primary-darker: #276be0;
+  --ifm-color-primary-darkest: #1a56be;
+  --ifm-color-primary-light: #659ced;
+  --ifm-color-primary-lighter: #76a7ef;
+  --ifm-color-primary-lightest: #9dc0f4;
+  
+  /* Code blocks */
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+  --ifm-code-background: rgba(255, 255, 255, 0.05);
+  
+  /* Background */
+  --ifm-background-color: #1e2125;
+  --ifm-background-surface-color: #282c34;
 }
 
+/* Code highlighting */
 .docusaurus-highlight-code-line {
   background-color: rgba(0, 0, 0, 0.1);
   display: block;
@@ -38,6 +65,135 @@
 
 [data-theme='dark'] .docusaurus-highlight-code-line {
   background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Documentation-specific styling */
+
+/* Headings */
+.markdown h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  border-bottom: 2px solid var(--ifm-color-emphasis-200);
+  padding-bottom: 0.5rem;
+}
+
+.markdown h2 {
+  font-size: 1.8rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: var(--ifm-color-primary-darker);
+}
+
+.markdown h3 {
+  font-size: 1.4rem;
+  margin-top: 1.8rem;
+  font-weight: 600;
+  color: var(--ifm-color-primary-darkest);
+}
+
+/* Code blocks */
+.markdown pre {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin: 1.5rem 0;
+}
+
+/* Inline code */
+.markdown code:not([class*="language-"]) {
+  border: 1px solid var(--ifm-color-emphasis-200);
+  font-size: 0.9em;
+}
+
+/* Tables */
+.markdown table {
+  display: table;
+  width: 100%;
+  margin: 1.5rem 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--ifm-global-radius);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.markdown table thead tr {
+  background-color: var(--ifm-color-primary-lightest);
+  color: var(--ifm-color-primary-darkest);
+}
+
+[data-theme='dark'] .markdown table thead tr {
+  background-color: var(--ifm-color-primary-darkest);
+  color: var(--ifm-color-white);
+}
+
+.markdown table th,
+.markdown table td {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Blockquotes */
+.markdown blockquote {
+  border-left: 4px solid var(--ifm-color-primary);
+  background-color: var(--ifm-color-primary-lightest);
+  opacity: 0.8;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  border-radius: 0 var(--ifm-global-radius) var(--ifm-global-radius) 0;
+}
+
+[data-theme='dark'] .markdown blockquote {
+  background-color: var(--ifm-color-primary-darkest);
+  opacity: 0.7;
+}
+
+/* Lists */
+.markdown ul,
+.markdown ol {
+  padding-left: 2rem;
+  margin: 1rem 0;
+}
+
+.markdown li {
+  margin: 0.5rem 0;
+}
+
+/* Function signatures and method definitions */
+.method-signature,
+.function-signature {
+  background-color: var(--ifm-code-background);
+  padding: 1rem;
+  border-radius: var(--ifm-global-radius);
+  margin: 1.5rem 0;
+  border-left: 4px solid var(--ifm-color-primary);
+  overflow-x: auto;
+  font-family: var(--ifm-font-family-monospace);
+}
+
+/* API parameters table */
+.api-params-table th:first-child {
+  width: 20%;
+}
+
+.api-params-table th:nth-child(2) {
+  width: 20%;
+}
+
+/* Sidebar styling */
+.menu__link {
+  border-radius: 0.25rem;
+  transition: all 0.2s ease;
+}
+
+.menu__link:hover {
+  background-color: var(--ifm-menu-color-background-hover);
+  transform: translateX(4px);
+}
+
+.menu__link--active {
+  font-weight: 600;
 }
 
 /* Custom styles for documentation */

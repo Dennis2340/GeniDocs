@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Octokit } from '@octokit/rest';
-import { processRepository } from '../../../../../scripts/repo-parser';
+import { processRepository } from '../../../../../scripts/acorn-parser';
 import { generateAIDocumentation } from '../../../../utils/aiDocGenerator';
 import { prisma } from '@/utils/db';
 import { getServerSession } from 'next-auth';
@@ -127,13 +127,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create a documentation record to track progress
-    const documentation = await prisma.documentation.create({
-      data: {
-        repositoryId: repoId,
-        status: 'INITIALIZING',
-      },
+    // Check if documentation already exists for this repository
+    let documentation = await prisma.documentation.findUnique({
+      where: { repositoryId: repoId }
     });
+    
+    if (documentation) {
+      // Update existing documentation record
+      documentation = await prisma.documentation.update({
+        where: { id: documentation.id },
+        data: { status: 'INITIALIZING' }
+      });
+      console.log(`Updated existing documentation record: ${documentation.id}`);
+    } else {
+      // Create a new documentation record
+      documentation = await prisma.documentation.create({
+        data: {
+          repositoryId: repoId,
+          status: 'INITIALIZING',
+        },
+      });
+      console.log(`Created new documentation record: ${documentation.id}`);
+    }
 
     // Start the documentation generation process asynchronously
     generateDocumentation(repository, documentation.id, userAccount.access_token).catch(error => {
@@ -233,9 +248,12 @@ async function generateDocumentation(repository: any, documentationId: string, g
       throw new Error('GitHub token is not available');
     }
 
-    // Initialize Octokit with user's GitHub token
+    // Initialize Octokit with user's GitHub token and better configuration
     const octokit = new Octokit({
       auth: githubToken,
+      request: {
+        timeout: 60000, // 60 second timeout
+      },
     });
 
     // Extract owner and name from repository fullName
@@ -255,13 +273,35 @@ async function generateDocumentation(repository: any, documentationId: string, g
     const repo = { owner, name };
     
     addLogEntry(documentationId, `Analyzing repository: ${repo.owner}/${repo.name}`, 15, 'analyzing');
-    addLogEntry(documentationId, 'Extracting code structure with Tree-sitter parser', 20, 'analyzing');
+    addLogEntry(documentationId, 'Testing GitHub API access...', 18, 'analyzing');
+    
+    try {
+      // Test API access before proceeding
+      await octokit.repos.get({
+        owner: repo.owner,
+        repo: repo.name,
+      });
+      addLogEntry(documentationId, 'GitHub API access confirmed', 20, 'analyzing');
+    } catch (apiError: any) {
+      const errorMsg = `GitHub API access failed: ${apiError.message}`;
+      addLogEntry(documentationId, `ERROR: ${errorMsg}`, 0, 'failed');
+      
+      if (apiError.status === 404) {
+        throw new Error(`Repository ${repo.owner}/${repo.name} not found or not accessible`);
+      } else if (apiError.status === 401 || apiError.status === 403) {
+        throw new Error('GitHub authentication failed or insufficient permissions');
+      } else {
+        throw new Error(errorMsg);
+      }
+    }
+    
+    addLogEntry(documentationId, 'Extracting code structure with Tree-sitter parser', 25, 'analyzing');
     
     const codeStructure = await processRepository(repo, octokit);
     
     if (!codeStructure || Object.keys(codeStructure).length === 0) {
       addLogEntry(documentationId, 'ERROR: Failed to extract code structure', 0, 'failed');
-      throw new Error('Failed to extract code structure');
+      throw new Error('Failed to extract code structure - no parseable files found');
     }
 
     // Update status to GENERATING
@@ -274,14 +314,19 @@ async function generateDocumentation(repository: any, documentationId: string, g
 
     addLogEntry(documentationId, 'Code structure extracted successfully', 40, 'generating');
     addLogEntry(documentationId, `Found ${Object.keys(codeStructure).length} feature groups`, 45, 'generating');
+    
+    // Log feature groups for debugging
+    const featureGroups = Object.keys(codeStructure);
+    addLogEntry(documentationId, `Feature groups: ${featureGroups.join(', ')}`, 47, 'generating');
+    
     addLogEntry(documentationId, 'Generating documentation with AI...', 50, 'generating');
     
     // Generate documentation using AI
-    const documentation = await generateAIDocumentation(codeStructure as Record<string, any[]>);
+    const documentation = await generateAIDocumentation(codeStructure as Record<string, any[]>, repository.name);
     
     if (!documentation || !documentation.urls) {
       addLogEntry(documentationId, 'ERROR: Failed to generate documentation', 0, 'failed');
-      throw new Error('Failed to generate documentation');
+      throw new Error('Failed to generate documentation - AI generation returned no results');
     }
 
     // Update status to FINALIZING
@@ -307,14 +352,29 @@ async function generateDocumentation(repository: any, documentationId: string, g
     addLogEntry(documentationId, 'Documentation process completed successfully!', 100, 'completed');
   } catch (error: unknown) {
     console.error('Error generating documentation:', error);
-    addLogEntry(documentationId, `ERROR: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, 0, 'failed');
+    
+    let errorMessage = 'Unknown error occurred';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
+    addLogEntry(documentationId, `ERROR: ${errorMessage}`, 0, 'failed');
     
     // Update documentation status to FAILED
-    await prisma.documentation.update({
-      where: { id: documentationId },
-      data: {
-        status: 'FAILED',
-      }
-    });
+    try {
+      await prisma.documentation.update({
+        where: { id: documentationId },
+        data: {
+          status: 'FAILED',
+        }
+      });
+    } catch (updateError) {
+      console.error('Failed to update documentation status to FAILED:', updateError);
+    }
+    
+    // Re-throw the error so it can be handled upstream if needed
+    throw error;
   }
 }
