@@ -3,8 +3,8 @@ import { prisma } from "@/utils/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 
-// Import the in-memory stores from the generate route
-import { documentationLogs, documentationProgress, documentationSteps } from '../route';
+// Import the in-memory stores from the code-structure route
+import { documentationLogs, documentationProgress, documentationSteps } from '../code-structure/route';
 
 // Define the response type for better type safety
 type StatusResponse = {

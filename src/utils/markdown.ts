@@ -3,6 +3,7 @@
  */
 
 import { sanitizeFrontMatterValue, sanitizeId } from './sanitize';
+import path from 'path';
 
 /**
  * Add Docusaurus front matter to markdown content
@@ -135,4 +136,58 @@ export function isValidMarkdown(content: string): boolean {
   
   // Check if any markdown patterns are found
   return markdownPatterns.some(pattern => pattern.test(content));
+}
+
+/**
+ * Generate markdown content from a template
+ * @param templateName The name of the template to use
+ * @param data The data to populate the template with
+ * @returns The generated markdown content
+ */
+export function generateMarkdownFromTemplate(templateName: string, data: Record<string, any>): string {
+  // Template definitions
+  const templates: Record<string, (data: Record<string, any>) => string> = {
+    'feature-overview': (data) => {
+      const { features, featureUrls, generatedAt } = data;
+      
+      let markdown = "# Code Documentation Overview\n\n";
+      
+      markdown += `Generated on: ${new Date(generatedAt).toLocaleString()}\n\n`;
+      
+      markdown += "## Features\n\n";
+      
+      features.forEach((feature: string) => {
+        const url = featureUrls[feature] || '#';
+        markdown += `- [${feature}](${url})\n`;
+      });
+      
+      return markdown;
+    },
+    
+    'feature-detail': (data) => {
+      const { feature, files, content } = data;
+      
+      let markdown = `# ${feature} Feature\n\n`;
+      
+      if (content) {
+        markdown += content;
+      } else {
+        markdown += "## Overview\n\nThis feature contains the following files:\n\n";
+        
+        files.forEach((file: string) => {
+          markdown += `- \`${file}\`\n`;
+        });
+      }
+      
+      return markdown;
+    }
+  };
+  
+  // Check if template exists
+  if (!templates[templateName]) {
+    throw new Error(`Template '${templateName}' not found`);
+  }
+  
+  // Generate markdown from template
+  return templates[templateName](data);
 }

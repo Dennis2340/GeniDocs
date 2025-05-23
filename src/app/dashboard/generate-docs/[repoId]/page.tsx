@@ -15,6 +15,7 @@ export default function GenerateDocs() {
   const [repoDetails, setRepoDetails] = useState<any>(null);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('initializing');
+  // Tree-sitter is now the default and only implementation
   // Define the type for generation steps
   interface GenerationStep {
     id: string;
@@ -72,16 +73,51 @@ export default function GenerateDocs() {
           error: false
         })));
         
-        const response = await fetch(`/api/generate?repoId=${repoId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
+        // Using Tree-sitter code structure endpoint
+        console.log('Using Tree-sitter code structure endpoint');
+        const endpoint = '/api/generate/code-structure';
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to generate documentation');
+        let response;
+        try {
+          response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ repoId }),
+          });
+
+          
+          if (!response.ok) {
+            // Try to get error details from response
+            let errorMessage = 'Failed to generate documentation';
+            
+            // Clone the response before reading it
+            const responseClone = response.clone();
+            
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.error || errorMessage;
+            } catch (parseError) {
+              // If we can't parse JSON, try to get text from the cloned response
+              try {
+                const errorText = await responseClone.text();
+                console.error('Error response (not JSON):', errorText);
+                errorMessage = `Server error (${response.status}): ${errorText.substring(0, 100)}...`;
+              } catch (textError) {
+                console.error('Failed to read response as text:', textError);
+                errorMessage = `Server error (${response.status}): Could not parse error response`;
+              }
+            }
+            throw new Error(errorMessage);
+          }
+        } catch (fetchError: any) {
+          console.error('Fetch error:', fetchError);
+          throw new Error(`Network error: ${fetchError.message || 'Unknown error'}`);
+        }
+        
+        if (!response) {
+          throw new Error('Failed to get response from server');
         }
         
         const data = await response.json();
@@ -236,6 +272,15 @@ export default function GenerateDocs() {
                 'Processing repository...'  
               )}
             </p>
+            
+            <div className="mt-4 flex items-center">
+              <div className="text-sm text-gray-600 flex items-center">
+                <svg className="h-5 w-5 text-blue-500 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Using Tree-sitter for enhanced code structure analysis</span>
+              </div>
+            </div>
           </div>
           <Link 
             href="/dashboard"
@@ -293,7 +338,7 @@ export default function GenerateDocs() {
                           <svg className="h-5 w-5 text-blue-500 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <span>Documentation generation analyzes your code structure, comments, and dependencies</span>
+                          <span>Tree-sitter is extracting code structure and grouping files by features</span>
                         </li>
                         <li className="flex items-start">
                           <svg className="h-5 w-5 text-blue-500 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -364,47 +409,16 @@ export default function GenerateDocs() {
                 </>
               ) : error ? (
                 <div className="text-center py-12">
-                  <div className="bg-red-100 rounded-full h-24 w-24 flex items-center justify-center mx-auto mb-6">
-                    <svg className="h-12 w-12 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-2">Documentation Generation Failed</h2>
-                  <p className="text-red-600 max-w-md mx-auto mb-4">{error}</p>
-                  <p className="text-gray-600 max-w-md mx-auto mb-8">
-                    There was an issue generating documentation for this repository. Please check the logs for more details.
-                  </p>
-                  <div className="flex justify-center space-x-4">
-                    <button 
-                      onClick={() => router.push('/dashboard')} 
-                      className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Back to Dashboard
-                    </button>
-                    <button 
-                      onClick={() => window.location.reload()} 
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Try Again
-                    </button>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-lg mx-auto text-left">
+                    <h3 className="text-lg font-medium text-red-800 mb-2">Error</h3>
+                    <p className="text-red-600">{error}</p>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <div className="bg-green-100 rounded-full h-24 w-24 flex items-center justify-center mx-auto mb-6">
-                    <svg className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-2">{status}</h2>
-                  <p className="text-gray-600 max-w-md mx-auto mb-4">
-                    Your documentation has been successfully generated. You will be redirected to view it shortly.
-                  </p>
-                  <div className="animate-pulse flex justify-center items-center text-blue-600">
-                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Redirecting to documentation...</span>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-lg mx-auto text-left">
+                    <h3 className="text-lg font-medium text-green-800 mb-2">Documentation Generated</h3>
+                    <p className="text-green-600">Your documentation has been successfully generated.</p>
                   </div>
                 </div>
               )}

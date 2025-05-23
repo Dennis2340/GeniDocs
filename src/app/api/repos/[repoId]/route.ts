@@ -5,7 +5,7 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 
 export async function GET(
   request: Request,
-  { params }: { params: { repoId: string } }
+  context: { params: { repoId: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,7 +17,8 @@ export async function GET(
       );
     }
 
-    const { repoId } = params;
+    // Access params from context
+    const { repoId } = context.params;
 
     if (!repoId) {
       return NextResponse.json(
