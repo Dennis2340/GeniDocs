@@ -61,7 +61,7 @@ async function makeAIRequest(messages: any[]): Promise<string> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer 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`,
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         messages,
