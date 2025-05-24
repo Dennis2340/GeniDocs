@@ -336,7 +336,7 @@ export default async function Dashboard() {
             </div>
             <h3 className="text-xl font-semibold text-white mb-2 font-space-grotesk">Organization not found</h3>
             <p className="text-gray-400 mb-6 max-w-md mx-auto">
-              There was an issue with your account. Please try signing out and back in, or contact support.
+              Please select a repo to get started
             </p>
             <Link 
               href="/api/auth/signout"
