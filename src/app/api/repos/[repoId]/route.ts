@@ -4,6 +4,7 @@ import { prisma } from "@/utils/db";
 import { authOptions } from "@/utils/auth";
 
 export async function GET(
+  request: Request,
   { params }: { params: Promise<{ repoId: string }> }
 ) {
   try {
