@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/utils/db';
-import { authOptions } from '../api/auth/[...nextauth]/route';
+import { authOptions } from '@/utils/auth';
 import Image from 'next/image';
 
 export default async function Dashboard() {
