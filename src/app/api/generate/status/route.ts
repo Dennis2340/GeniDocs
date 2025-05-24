@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/utils/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "@/utils/auth";
 
 // Import the in-memory stores from the code-structure route
 import { documentationLogs, documentationProgress, documentationSteps } from '../code-structure/route';

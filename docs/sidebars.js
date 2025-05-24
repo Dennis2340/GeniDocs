@@ -1,27 +1,16 @@
 /**
  * Automatically generated sidebar configuration
- * Generated on: 2025-05-23T20:30:01.912Z
+ * Generated on: 2025-05-24T08:57:31.948Z
  */
 
 module.exports = {
   "docs": [
     {
       "type": "category",
-      "label": "startup-pub-dir Documentation",
+      "label": "IHPAU-InternalApp Documentation",
       "items": [
-        "startup-pub-dir/index",
+        "IHPAU-InternalApp/index",
         "GeniDocs/README",
-        {
-          "type": "category",
-          "label": "Authentication",
-          "items": [
-            {
-              "type": "doc",
-              "id": "GeniDocs/authentication/authentication",
-              "label": "Authentication"
-            }
-          ]
-        },
         {
           "type": "category",
           "label": "Api",
@@ -39,8 +28,8 @@ module.exports = {
           "items": [
             {
               "type": "doc",
-              "id": "GeniDocs/ui/ui",
-              "label": "UI"
+              "id": "GeniDocs/ui/ui_components",
+              "label": "UI Components"
             }
           ]
         },
@@ -57,19 +46,13 @@ module.exports = {
         },
         {
           "type": "category",
-          "label": "Middleware",
+          "label": "Miscellaneous",
           "items": [
             {
               "type": "doc",
-              "id": "GeniDocs/middleware/middleware",
-              "label": "Middleware"
-            }
-          ]
-        },
-        {
-          "type": "category",
-          "label": "Miscellaneous",
-          "items": [
+              "id": "GeniDocs/miscellaneous/hooks",
+              "label": "Hooks"
+            },
             {
               "type": "doc",
               "id": "GeniDocs/miscellaneous/other",

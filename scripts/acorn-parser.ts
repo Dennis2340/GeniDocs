@@ -1,10 +1,10 @@
 import * as path from 'path';
 import { Octokit } from '@octokit/rest';
-import { parse } from 'acorn';
+import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
 
-// You'll need to install these TypeScript parsing dependencies:
-// npm install @typescript-eslint/parser @typescript-eslint/typescript-estree
+// Import JSX parser for acorn
+import jsx from 'acorn-jsx';
 
 // Import TypeScript parser
 import { parse as parseTypeScript } from '@typescript-eslint/typescript-estree';
@@ -37,16 +37,207 @@ interface FeatureGroups {
   [key: string]: ParsedFile[];
 }
 
+// Extended acorn parser with JSX support
+const acornJsxParser = acorn.Parser.extend(jsx());
+
 // Map file extensions to parser options
 const extensionToParserOptions: Record<string, any> = {
   '.js': { ecmaVersion: 2022, sourceType: 'module' },
-  '.jsx': { ecmaVersion: 2022, sourceType: 'module' },
+  '.jsx': { ecmaVersion: 2022, sourceType: 'module', jsx: true },
   '.ts': { ecmaVersion: 2022, sourceType: 'module' },
-  '.tsx': { ecmaVersion: 2022, sourceType: 'module' },
+  '.tsx': { ecmaVersion: 2022, sourceType: 'module', jsx: true },
+  '.go': { parseGo: true }, // Special flag for Go files
 };
 
 // List of supported file extensions
-const supportedExtensions = ['.js', '.jsx', '.ts', '.tsx'];
+const supportedExtensions = ['.js', '.jsx', '.ts', '.tsx', '.go'];
+
+/**
+ * Simple Go parser that extracts basic code structures
+ * @param content - Go file content
+ * @returns Array of code entries
+ */
+function parseGoFile(content: string): CodeEntry[] {
+  const entries: CodeEntry[] = [];
+  const lines = content.split('\n');
+  
+  // Regex patterns for Go constructs
+  const patterns = {
+    package: /^package\s+(\w+)/,
+    function: /^func\s+(\w+)\s*\(/,
+    method: /^func\s+\([^)]*\)\s+(\w+)\s*\(/,
+    struct: /^type\s+(\w+)\s+struct\s*{/,
+    interface: /^type\s+(\w+)\s+interface\s*{/,
+    type: /^type\s+(\w+)\s+(?!struct|interface)/,
+    const: /^const\s+(\w+)/,
+    var: /^var\s+(\w+)/,
+    import: /^import\s*\(/,
+  };
+  
+  let currentBlock: { type: string; name: string; startLine: number } | null = null;
+  let braceCount = 0;
+  let inImportBlock = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const lineNumber = i + 1;
+    
+    // Skip empty lines and comments
+    if (!line || line.startsWith('//') || line.startsWith('/*')) {
+      continue;
+    }
+    
+    // Handle import blocks
+    if (patterns.import.test(line)) {
+      inImportBlock = true;
+      continue;
+    }
+    
+    if (inImportBlock) {
+      if (line === ')') {
+        inImportBlock = false;
+      }
+      continue;
+    }
+    
+    // Count braces to track block endings
+    const openBraces = (line.match(/{/g) || []).length;
+    const closeBraces = (line.match(/}/g) || []).length;
+    braceCount += openBraces - closeBraces;
+    
+    // Check for function declarations
+    const funcMatch = line.match(patterns.function);
+    if (funcMatch) {
+      const funcName = funcMatch[1];
+      // Check if this is a method by looking for receiver
+      const methodMatch = line.match(/^func\s+\([^)]*\s+\*?(\w+)\)\s+(\w+)\s*\(/);
+      
+      if (methodMatch) {
+        // This is a method
+        entries.push({
+          type: 'method',
+          name: `${methodMatch[1]}.${methodMatch[2]}`,
+          startLine: lineNumber,
+          endLine: lineNumber, // Will be updated when we find the closing brace
+        });
+      } else {
+        // This is a regular function
+        entries.push({
+          type: 'function',
+          name: funcName,
+          startLine: lineNumber,
+          endLine: lineNumber, // Will be updated when we find the closing brace
+        });
+      }
+      
+      if (openBraces > 0) {
+        currentBlock = {
+          type: methodMatch ? 'method' : 'function',
+          name: methodMatch ? `${methodMatch[1]}.${methodMatch[2]}` : funcName,
+          startLine: lineNumber
+        };
+      }
+      continue;
+    }
+    
+    // Check for struct declarations
+    const structMatch = line.match(patterns.struct);
+    if (structMatch) {
+      const structName = structMatch[1];
+      entries.push({
+        type: 'struct',
+        name: structName,
+        startLine: lineNumber,
+        endLine: lineNumber, // Will be updated when we find the closing brace
+        children: [],
+      });
+      
+      if (openBraces > 0) {
+        currentBlock = {
+          type: 'struct',
+          name: structName,
+          startLine: lineNumber
+        };
+      }
+      continue;
+    }
+    
+    // Check for interface declarations
+    const interfaceMatch = line.match(patterns.interface);
+    if (interfaceMatch) {
+      const interfaceName = interfaceMatch[1];
+      entries.push({
+        type: 'interface',
+        name: interfaceName,
+        startLine: lineNumber,
+        endLine: lineNumber, // Will be updated when we find the closing brace
+        children: [],
+      });
+      
+      if (openBraces > 0) {
+        currentBlock = {
+          type: 'interface',
+          name: interfaceName,
+          startLine: lineNumber
+        };
+      }
+      continue;
+    }
+    
+    // Check for type declarations
+    const typeMatch = line.match(patterns.type);
+    if (typeMatch) {
+      const typeName = typeMatch[1];
+      entries.push({
+        type: 'type',
+        name: typeName,
+        startLine: lineNumber,
+        endLine: lineNumber,
+      });
+      continue;
+    }
+    
+    // Check for const declarations
+    const constMatch = line.match(patterns.const);
+    if (constMatch) {
+      const constName = constMatch[1];
+      entries.push({
+        type: 'const',
+        name: constName,
+        startLine: lineNumber,
+        endLine: lineNumber,
+      });
+      continue;
+    }
+    
+    // Check for var declarations
+    const varMatch = line.match(patterns.var);
+    if (varMatch) {
+      const varName = varMatch[1];
+      entries.push({
+        type: 'var',
+        name: varName,
+        startLine: lineNumber,
+        endLine: lineNumber,
+      });
+      continue;
+    }
+    
+    // Update end line for current block when we encounter closing braces
+    if (currentBlock && closeBraces > 0 && braceCount === 0) {
+      const entry = entries.find(e => 
+        e.name === currentBlock!.name && 
+        e.startLine === currentBlock!.startLine
+      );
+      if (entry) {
+        entry.endLine = lineNumber;
+      }
+      currentBlock = null;
+    }
+  }
+  
+  return entries;
+}
 
 /**
  * Parse file content using appropriate parser based on extension
@@ -56,6 +247,11 @@ const supportedExtensions = ['.js', '.jsx', '.ts', '.tsx'];
  */
 function parseFileContent(content: string, extension: string): any | null {
   try {
+    // Handle Go files with custom parser
+    if (extension === '.go') {
+      return { type: 'GoFile', entries: parseGoFile(content) };
+    }
+    
     // Use TypeScript parser for .ts and .tsx files
     if (extension === '.ts' || extension === '.tsx') {
       const ast = parseTypeScript(content, {
@@ -74,7 +270,7 @@ function parseFileContent(content: string, extension: string): any | null {
       return ast;
     }
     
-    // Use standard acorn parser for .js and .jsx files
+    // Use acorn with JSX support for .js and .jsx files
     const options = extensionToParserOptions[extension];
     if (!options) {
       return null;
@@ -85,7 +281,15 @@ function parseFileContent(content: string, extension: string): any | null {
       locations: true,
     };
     
-    const ast = parse(content, parserOptions);
+    let ast: any;
+    
+    // Use JSX-enabled parser for .jsx files and regular acorn for .js files
+    if (extension === '.jsx') {
+      ast = acornJsxParser.parse(content, parserOptions);
+    } else {
+      ast = acorn.parse(content, parserOptions);
+    }
+    
     return ast;
   } catch (error) {
     console.warn(`Error parsing file with extension ${extension}:`, error);
@@ -94,12 +298,17 @@ function parseFileContent(content: string, extension: string): any | null {
 }
 
 /**
- * Extract code structure from AST (works with both Acorn and TypeScript ASTs)
- * @param ast - Parsed AST
+ * Extract code structure from AST (works with Acorn, TypeScript ASTs, and Go parser results)
+ * @param ast - Parsed AST or Go parser result
  * @param content - Original file content (for line counting)
  * @returns Array of code entries
  */
 function extractCodeStructure(ast: any, content: string): CodeEntry[] {
+  // Handle Go files - entries are already extracted by parseGoFile
+  if (ast && ast.type === 'GoFile' && ast.entries) {
+    return ast.entries;
+  }
+  
   const entries: CodeEntry[] = [];
 
   // Helper function to safely get line number from node
@@ -149,20 +358,102 @@ function extractCodeStructure(ast: any, content: string): CodeEntry[] {
     return methods;
   }
 
+  // Helper function to extract React component information
+  function extractReactComponent(node: any): CodeEntry | null {
+    // Check for React functional components (arrow functions returning JSX)
+    if (node.type === 'VariableDeclaration' && node.declarations) {
+      for (const decl of node.declarations) {
+        if (decl.id && decl.id.name && decl.init) {
+          // Arrow function component
+          if (decl.init.type === 'ArrowFunctionExpression' && hasJSXReturn(decl.init)) {
+            const lines = getLineNumber(node);
+            return {
+              type: 'react_component',
+              name: decl.id.name,
+              startLine: lines.start,
+              endLine: lines.end,
+            };
+          }
+          // Function expression component
+          if (decl.init.type === 'FunctionExpression' && hasJSXReturn(decl.init)) {
+            const lines = getLineNumber(node);
+            return {
+              type: 'react_component',
+              name: decl.id.name,
+              startLine: lines.start,
+              endLine: lines.end,
+            };
+          }
+        }
+      }
+    }
+    
+    // Check for React function declaration components
+    if (node.type === 'FunctionDeclaration' && node.id && hasJSXReturn(node)) {
+      const lines = getLineNumber(node);
+      return {
+        type: 'react_component',
+        name: node.id.name,
+        startLine: lines.start,
+        endLine: lines.end,
+      };
+    }
+    
+    return null;
+  }
+
+  // Helper function to check if a function returns JSX
+  function hasJSXReturn(funcNode: any): boolean {
+    if (!funcNode.body) return false;
+    
+    // Check for immediate JSX return (arrow function)
+    if (funcNode.body.type && funcNode.body.type.startsWith('JSX')) {
+      return true;
+    }
+    
+    // Check for JSX in return statements (function body)
+    if (funcNode.body.type === 'BlockStatement' && funcNode.body.body) {
+      return funcNode.body.body.some((stmt: any) => {
+        if (stmt.type === 'ReturnStatement' && stmt.argument) {
+          return stmt.argument.type && stmt.argument.type.startsWith('JSX');
+        }
+        return false;
+      });
+    }
+    
+    return false;
+  }
+
   // Recursive function to walk the AST
   function walkNode(node: any) {
     if (!node || typeof node !== 'object') return;
+
+    // Check for React components first (for JSX files)
+    const reactComponent = extractReactComponent(node);
+    if (reactComponent) {
+      entries.push(reactComponent);
+      // Continue processing for other patterns
+    }
 
     switch (node.type) {
       case 'FunctionDeclaration':
         if (node.id && node.id.name) {
           const lines = getLineNumber(node);
-          entries.push({
-            type: 'function',
-            name: node.id.name,
-            startLine: lines.start,
-            endLine: lines.end,
-          });
+          // Check if it's already identified as a React component
+          const isReactComponent = entries.some(e => 
+            e.type === 'react_component' && 
+            e.name === node.id.name && 
+            e.startLine === lines.start
+          );
+          
+          if (!isReactComponent) {
+            entries.push({
+              type: 'function',
+              name: node.id.name,
+              startLine: lines.start,
+              endLine: lines.end,
+            });
+          }
         }
         break;
 
@@ -189,8 +480,13 @@ function extractCodeStructure(ast: any, content: string): CodeEntry[] {
       case 'VariableDeclaration':
         if (node.declarations) {
           for (const decl of node.declarations) {
-            // Only include function expressions and arrow functions
-            if (decl.id && decl.id.name && 
+            // Skip if already processed as React component
+            const isReactComponent = entries.some(e => 
+              e.type === 'react_component' && 
+              decl.id && e.name === decl.id.name
+            );
+            
+            if (!isReactComponent && decl.id && decl.id.name && 
                 decl.init && (decl.init.type === 'FunctionExpression' || decl.init.type === 'ArrowFunctionExpression')) {
               const lines = getLineNumber(node);
               entries.push({
@@ -208,8 +504,9 @@ function extractCodeStructure(ast: any, content: string): CodeEntry[] {
         if (node.declaration) {
           if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
             const lines = getLineNumber(node);
+            const funcType = hasJSXReturn(node.declaration) ? 'exported_react_component' : 'exported_function';
             entries.push({
-              type: 'exported_function',
+              type: funcType,
               name: node.declaration.id.name,
               startLine: lines.start,
               endLine: lines.end,
@@ -258,8 +555,9 @@ function extractCodeStructure(ast: any, content: string): CodeEntry[] {
         if (node.declaration) {
           if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
             const lines = getLineNumber(node);
+            const funcType = hasJSXReturn(node.declaration) ? 'default_exported_react_component' : 'default_exported_function';
             entries.push({
-              type: 'default_exported_function',
+              type: funcType,
               name: node.declaration.id.name,
               startLine: lines.start,
               endLine: lines.end,
@@ -269,6 +567,16 @@ function extractCodeStructure(ast: any, content: string): CodeEntry[] {
             entries.push({
               type: 'default_exported_class',
               name: node.declaration.id.name,
+              startLine: lines.start,
+              endLine: lines.end,
+            });
+          }
+          // Handle default export of arrow function components
+          else if (node.declaration.type === 'ArrowFunctionExpression' && hasJSXReturn(node.declaration)) {
+            const lines = getLineNumber(node);
+            entries.push({
+              type: 'default_exported_react_component',
+              name: 'default', // Anonymous default export
               startLine: lines.start,
               endLine: lines.end,
             });
@@ -339,18 +647,26 @@ function extractCodeStructure(ast: any, content: string): CodeEntry[] {
 function groupFilesByFeature(parsedFiles: ParsedFile[]): FeatureGroups {
   const featureGroups: FeatureGroups = {};
   
-  // Heuristics for grouping
+  // Enhanced heuristics for grouping (including Go-specific patterns and React components)
   const featureKeywords: Record<string, string[]> = {
-    'Authentication': ['auth', 'login', 'register', 'password', 'user'],
-    'API': ['api', 'endpoint', 'route', 'controller'],
-    'Database': ['db', 'database', 'model', 'schema', 'query', 'repository'],
-    'UI': ['component', 'view', 'page', 'template', 'style', 'css', 'ui'],
-    'Utilities': ['util', 'helper', 'common', 'shared'],
-    'Testing': ['test', 'spec', 'mock'],
-    'Configuration': ['config', 'setting', 'env'],
-    'Security': ['security', 'permission', 'role', 'encrypt'],
+    'Authentication': ['auth', 'login', 'register', 'password', 'user', 'jwt', 'token'],
+    'API': ['api', 'endpoint', 'route', 'controller', 'handler', 'router', 'server'],
+    'Database': ['db', 'database', 'model', 'schema', 'query', 'repository', 'orm', 'sql', 'migration'],
+    'UI Components': ['component', 'view', 'page', 'template', 'ui', 'frontend', 'react', 'jsx', 'tsx'],
+    'Styling': ['style', 'css', 'scss', 'styled', 'theme'],
+    'Utilities': ['util', 'helper', 'common', 'shared', 'tools'],
+    'Testing': ['test', 'spec', 'mock', 'benchmark'],
+    'Configuration': ['config', 'setting', 'env', 'flags'],
+    'Security': ['security', 'permission', 'role', 'encrypt', 'crypto'],
     'Logging': ['log', 'logger', 'trace', 'debug'],
     'Middleware': ['middleware', 'interceptor', 'filter'],
+    'CLI': ['cmd', 'cli', 'command', 'flag'],
+    'HTTP': ['http', 'client', 'request', 'response'],
+    'JSON': ['json', 'marshal', 'unmarshal'],
+    'Validation': ['validate', 'validator', 'validation'],
+    'Error Handling': ['error', 'err', 'exception'],
+    'State Management': ['store', 'state', 'redux', 'context', 'provider'],
+    'Hooks': ['hook', 'use'],
   };
   
   // Initialize feature groups
@@ -365,6 +681,16 @@ function groupFilesByFeature(parsedFiles: ParsedFile[]): FeatureGroups {
   function determineFeature(filePath: string, entries?: CodeEntry[]): string {
     const fileName = path.basename(filePath).toLowerCase();
     const dirPath = path.dirname(filePath).toLowerCase();
+    
+    // Special handling for React components
+    if (entries && entries.some(e => e.type.includes('react_component'))) {
+      return 'UI Components';
+    }
+    
+    // Special handling for TypeScript definition files
+    if (fileName.endsWith('.d.ts')) {
+      return 'Configuration';
+    }
     
     // First check if the directory path contains feature keywords
     for (const [feature, keywords] of Object.entries(featureKeywords)) {
@@ -387,10 +713,11 @@ function groupFilesByFeature(parsedFiles: ParsedFile[]): FeatureGroups {
     // If no match found in path, check the code entries
     if (entries && entries.length > 0) {
       const allNames = entries.map(entry => entry.name.toLowerCase()).join(' ');
+      const allTypes = entries.map(entry => entry.type.toLowerCase()).join(' ');
       
       for (const [feature, keywords] of Object.entries(featureKeywords)) {
         for (const keyword of keywords) {
-          if (allNames.includes(keyword)) {
+          if (allNames.includes(keyword) || allTypes.includes(keyword)) {
             return feature;
           }
         }
@@ -641,7 +968,7 @@ export async function getRepositoryFiles(repo: Repository, octokit: Octokit): Pr
           }
         } else if (item.type === 'dir') {
           // Skip node_modules, .git, and other common directories to ignore
-          const dirsToIgnore = ['node_modules', '.git', 'dist', 'build', 'target', 'out', 'bin', 'obj', '.next', 'coverage'];
+          const dirsToIgnore = ['node_modules', '.git', 'dist', 'build', 'target', 'out', 'bin', 'obj', '.next', 'coverage', 'vendor'];
           const shouldSkip = dirsToIgnore.some(dir => {
             const itemPath = item.path || '';
             return itemPath.includes(dir) || itemPath.split('/').includes(dir);

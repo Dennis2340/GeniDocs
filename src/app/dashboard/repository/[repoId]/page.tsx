@@ -2,8 +2,8 @@ import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/utils/db';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import GitHubPluginInstaller from '@/components/GitHubPluginInstaller';
+import { authOptions } from '@/utils/auth';
 
 export default async function RepositoryDetails({ params }: { params: Promise<{ repoId: string }> }) {
   const session = await getServerSession(authOptions);

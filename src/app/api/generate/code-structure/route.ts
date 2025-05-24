@@ -4,7 +4,7 @@ import { processRepository } from '../../../../../scripts/acorn-parser';
 import { generateAIDocumentation } from '../../../../utils/aiDocGenerator';
 import { prisma } from '@/utils/db';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/utils/auth';
 
 // In-memory store for documentation generation progress logs and progress tracking
 // This is a simple solution that doesn't require database schema changes
